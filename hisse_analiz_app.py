@@ -228,6 +228,13 @@ def get_gemini_analysis(api_key, ticker, info, last_row):
 if 'lang' not in st.session_state: st.session_state.lang = "TR"
 if 'watchlist' not in st.session_state: st.session_state.watchlist = []
 
+# HATA DÜZELTMESİ: Filtre durumlarını burada başlat
+if 'rsi_enabled' not in st.session_state: st.session_state.rsi_enabled = False
+if 'rsi_value' not in st.session_state: st.session_state.rsi_value = 35
+if 'macd_cross' not in st.session_state: st.session_state.macd_cross = False
+if 'sma_cross' not in st.session_state: st.session_state.sma_cross = False
+
+
 # -----------------------------------------------------------------------------
 # Sayfa Konfigürasyonu ve Ana Başlık
 # -----------------------------------------------------------------------------
@@ -400,4 +407,5 @@ with tab4:
             with st.spinner(f"{t('spinner_ai')} {ticker_input_tab4}..."):
                 #... AI Analiz Kodu ...
                 st.success("Analiz tamamlandı.")
+
 
