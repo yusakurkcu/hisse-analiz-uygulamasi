@@ -130,13 +130,16 @@ def get_ticker_list(list_name_key):
 def get_stock_data(ticker, period="1y"):
     try:
         stock = yf.Ticker(ticker)
-        return stock.history(period=period, auto_adjust=False), stock.info, stock.news
+        data, info, news = stock.history(period=period, auto_adjust=False), stock.info, stock.news
+        if not data.empty:
+            data.columns = [col.lower() for col in data.columns] # Veri çekilirken standartlaştır
+        return data, info, news
     except Exception: return None, None, None
 
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
-        df.columns = [col.lower() for col in df.columns]
+        # Sütun adlarının zaten küçük harf olduğu varsayılır (get_stock_data'da yapıldı)
         df.ta.rsi(close=df['close'], append=True)
         df.ta.macd(close=df['close'], append=True)
         df.ta.sma(close=df['close'], length=50, append=True)
