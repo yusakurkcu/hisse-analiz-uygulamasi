@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # -----------------------------------------------------------------------------
-# Dil ve Çeviri Ayarları
+# Dil ve Çeviri Ayarları (Tam ve Eksiksiz)
 # -----------------------------------------------------------------------------
 LANGUAGES = {
     "TR": {
@@ -48,10 +48,30 @@ LANGUAGES = {
         "add_to_watchlist": "İzleme Listesine Ekle ⭐",
         "remove_from_watchlist": "Listeden Kaldır",
         "added_to_watchlist": "izleme listenize eklendi!",
+        "sub_tab_analysis_charts": "Teknik Analiz & Grafikler",
+        "sub_tab_market_sentiment": "Piyasa Gündemi (Haberler & Reddit)",
+        "spinner_analysis": "için veriler ve analiz hazırlanıyor...",
+        "error_no_data": "Bu hisse için veri bulunamadı. Lütfen sembolü kontrol edin.",
+        "error_no_technicals": "Teknik göstergeler hesaplanamadı. Yetersiz veri olabilir.",
         "metric_price": "Güncel Fiyat", "metric_cap": "Piyasa Değeri", "metric_volume": "Hacim", "metric_pe": "F/K Oranı",
+        "metric_52w_range": "52 Haftalık Aralık", "metric_beta": "Beta (Volatilite)", "metric_dividend_yield": "Temettü Verimi",
         "subheader_rule_based": "Kural Tabanlı Teknik Analiz",
         "subheader_company_profile": "Şirket Profili",
         "subheader_charts": "Profesyonel Fiyat Grafiği",
+        "chart_caption": "Fiyat, 50-Günlük (Mavi) ve 200-Günlük (Turuncu) Hareketli Ortalamalar",
+        "subheader_news": "📰 Son Haberler", "subheader_reddit": "💬 Reddit Tartışmaları",
+        "info_no_news_24h": "Son 24 saatte ilgili haber bulunamadı.", "info_no_news": "Haber bulunamadı.",
+        "spinner_reddit": "Reddit gönderileri aranıyor...", "info_no_reddit": "Son 24 saatte ilgili Reddit gönderisi bulunamadı.",
+        "summary_recommendation": "Öneri", "recommendation_buy": "AL", "recommendation_sell": "SAT", "recommendation_neutral": "NÖTR",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) aşırı satım bölgesinde, tepki alımı potansiyeli olabilir.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) aşırı alım bölgesinde, düzeltme riski olabilir.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) nötr bölgede.",
+        "summary_macd_bullish": "MACD, sinyal çizgisini yukarı keserek 'Al' sinyali üretiyor.",
+        "summary_macd_bearish": "MACD, sinyal çizgisini aşağı keserek 'Sat' sinyali üretiyor.",
+        "summary_sma_golden": "Fiyat, 50 ve 200 günlük ortalamaların üzerinde (Golden Cross). Güçlü yükseliş trendi.",
+        "summary_sma_death": "Fiyat, 50 ve 200 günlük ortalamaların altında (Death Cross). Düşüş trendi.",
+        "summary_sma_bullish": "Fiyat, 50 günlük ortalamanın üzerinde, kısa vadeli görünüm pozitif.",
+        "summary_sma_bearish": "Fiyat, 50 günlük ortalamanın altında, kısa vadede baskı olabilir.",
         "watchlist_header": "Kişisel İzleme Listeniz", 
         "watchlist_empty": "İzleme listeniz boş. 'Hisse Analizi' sekmesinden hisse ekleyebilirsiniz.",
     },
@@ -92,16 +112,36 @@ LANGUAGES = {
         "analysis_input_label": "Enter symbol for analysis (e.g., AAPL)",
         "add_to_watchlist": "Add to Watchlist ⭐", "remove_from_watchlist": "Remove",
         "added_to_watchlist": "has been added to your watchlist!",
+        "sub_tab_analysis_charts": "Technical Analysis & Charts",
+        "sub_tab_market_sentiment": "Market Sentiment (News & Reddit)",
+        "spinner_analysis": "Preparing data and analysis for...",
+        "error_no_data": "Could not find data for this stock. Please check the symbol.",
+        "error_no_technicals": "Could not calculate technical indicators. There might be insufficient data.",
         "metric_price": "Current Price", "metric_cap": "Market Cap", "metric_volume": "Volume", "metric_pe": "P/E Ratio",
+        "metric_52w_range": "52-Week Range", "metric_beta": "Beta (Volatility)", "metric_dividend_yield": "Dividend Yield",
         "subheader_rule_based": "Rule-Based Technical Analysis",
         "subheader_company_profile": "Company Profile",
         "subheader_charts": "Professional Price Chart",
+        "chart_caption": "Price, 50-Day (Blue) and 200-Day (Orange) Moving Averages",
+        "subheader_news": "📰 Latest News", "subheader_reddit": "💬 Reddit Discussions",
+        "info_no_news_24h": "No relevant news found in the last 24 hours.", "info_no_news": "No news found.",
+        "spinner_reddit": "Searching for Reddit posts...", "info_no_reddit": "No relevant Reddit posts found in the last 24 hours.",
+        "summary_recommendation": "Recommendation", "recommendation_buy": "BUY", "recommendation_sell": "SELL", "recommendation_neutral": "NEUTRAL",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) is in the oversold region, suggesting a potential for a rebound.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) is in the overbought region, suggesting a risk of a correction.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) is in the neutral zone.",
+        "summary_macd_bullish": "MACD is generating a 'Buy' signal, crossing above its signal line.",
+        "summary_macd_bearish": "MACD is generating a 'Sell' signal, crossing below its signal line.",
+        "summary_sma_golden": "Price is above the 50-day and 200-day MAs (Golden Cross). Strong bullish trend.",
+        "summary_sma_death": "Price is below the 50-day and 200-day MAs (Death Cross). Bearish trend.",
+        "summary_sma_bullish": "Price is above the 50-day MA, indicating a positive short-term outlook.",
+        "summary_sma_bearish": "Price is below the 50-day MA, which may indicate short-term pressure.",
         "watchlist_header": "Your Personal Watchlist", 
         "watchlist_empty": "Your watchlist is empty. Add stocks from the 'Stock Analysis' tab.",
     }
 }
 
-# --- Yardımcı Fonksiyonlar ---
+# --- Yardımcı Fonksiyonlar (Tam ve Çalışır Durumda) ---
 def t(key): return LANGUAGES[st.session_state.lang].get(key, key)
 
 @st.cache_data(ttl=86400)
@@ -135,7 +175,7 @@ def get_stock_data(ticker, period="1y"):
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
-        df.ta.rsi(append=True); df.ta.macd(append=True); df.ta.sma(length=50, append=True); df.ta.atr(append=True)
+        df.ta.rsi(append=True); df.ta.macd(append=True); df.ta.sma(length=50, append=True); df.ta.sma(length=200, append=True); df.ta.atr(append=True)
         df.dropna(inplace=True)
     return df
 
@@ -166,6 +206,45 @@ def get_option_suggestion(ticker, current_price):
         return None
     except Exception:
         return None
+
+def generate_analysis_summary(ticker, info, last_row):
+    summary_points, buy_signals, sell_signals = [], 0, 0
+    if not isinstance(last_row, pd.Series): return "Veri yetersiz.", "NÖTR"
+    
+    rsi = last_row.get('RSI_14', 50)
+    if rsi < 30: summary_points.append(t('summary_rsi_oversold').format(rsi=rsi)); buy_signals += 2
+    elif rsi > 70: summary_points.append(t('summary_rsi_overbought').format(rsi=rsi)); sell_signals += 2
+    else: summary_points.append(t('summary_rsi_neutral').format(rsi=rsi))
+
+    if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0): summary_points.append(t('summary_macd_bullish')); buy_signals += 1
+    else: summary_points.append(t('summary_macd_bearish')); sell_signals += 1
+
+    current_price = last_row.get('Close', 0); sma_50 = last_row.get('SMA_50', 0); sma_200 = last_row.get('SMA_200', 0)
+    if sma_50 > 0 and sma_200 > 0:
+        if current_price > sma_50 and sma_50 > sma_200: summary_points.append(t('summary_sma_golden')); buy_signals += 2
+        elif current_price < sma_50 and current_price < sma_200: summary_points.append(t('summary_sma_death')); sell_signals += 2
+        elif current_price > sma_50: summary_points.append(t('summary_sma_bullish')); buy_signals += 1
+        else: summary_points.append(t('summary_sma_bearish')); sell_signals += 1
+    
+    recommendation = t('recommendation_neutral')
+    if buy_signals > sell_signals + 1: recommendation = t('recommendation_buy')
+    elif sell_signals > buy_signals + 1: recommendation = t('recommendation_sell')
+    
+    final_summary = f"**{info.get('longName', ticker)} ({ticker})**: \n" + "- " + "\n- ".join(summary_points)
+    return final_summary, recommendation
+
+@st.cache_data(ttl=3600)
+def get_reddit_posts(ticker, limit=5):
+    posts, subreddits = [], ['wallstreetbets', 'stocks', 'investing']
+    try:
+        for subreddit in subreddits:
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            url = f"https://www.reddit.com/r/{subreddit}/search.json?q={ticker}&sort=new&restrict_sr=on&t=day"
+            response = requests.get(url, headers=headers); response.raise_for_status()
+            for post in response.json()['data']['children']:
+                posts.append({'title': post['data']['title'], 'url': f"https://reddit.com{post['data']['permalink']}", 'subreddit': f"r/{subreddit}"})
+        return [dict(t) for t in {tuple(d.items()) for d in posts}][:limit]
+    except Exception: return []
 
 # -----------------------------------------------------------------------------
 # Oturum Durumu Başlatma
@@ -214,10 +293,9 @@ st.markdown("""<style>
         border-bottom: 2px solid #00C805;
     }
     .stExpander {
-        border: none;
+        border: 1px solid #222;
         border-radius: 12px;
         background-color: #121212;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     .stExpander header { font-size: 1.1em; font-weight: 600; }
     .stMetric {
@@ -226,6 +304,8 @@ st.markdown("""<style>
         border-radius: 10px;
     }
     [data-testid="stMetricDelta"] svg { display: inline; }
+    [data-testid="stMetricDelta"] div[data-delta-color="normal"] { color: #00C805 !important; }
+    [data-testid="stMetricDelta"] div[data-delta-color="inverse"] { color: #FF4B4B !important; }
     h1, h2, h3, h4 { color: #FFFFFF; }
 </style>""", unsafe_allow_html=True)
 
@@ -241,48 +321,28 @@ LOGO_SVG = """
 <path d="M16 4.25L15.25 3.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
 </svg>
 """
-
-st.markdown(f"""
-<div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-    {LOGO_SVG}
-    <div>
-        <h1 style='margin-bottom: -10px; color: #FFFFFF;'>{t("app_title")}</h1>
-        <p style='color: #888;'>{t("app_caption")}</p>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(f"<div style='display: flex; align-items: center; gap: 15px; margin-bottom: 20px;'>{LOGO_SVG}<div><h1 style='margin-bottom: -10px; color: #FFFFFF;'>{t('app_title')}</h1><p style='color: #888;'>{t('app_caption')}</p></div></div>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # Ana Sekmeler
 # -----------------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs([
-    f"📈 {t('tab_screener')}", 
-    f"🔍 {t('tab_analysis')}", 
-    f"⭐ {t('tab_watchlist')}"
-])
+tab_icons = ["📈", "🔍", "⭐"]
+tabs = st.tabs([f"{icon} {label}" for icon, label in zip(tab_icons, [t('tab_screener'), t('tab_analysis'), t('tab_watchlist')])])
 
 # -----------------------------------------------------------------------------
 # Kenar Çubuğu (SIDEBAR)
 # -----------------------------------------------------------------------------
 st.sidebar.selectbox("Language / Dil", options=["TR", "EN"], key="lang")
 st.sidebar.header(t("sidebar_header"))
-stock_lists = {
-    t("list_robinhood"): get_ticker_list,
-    t("list_sp500"): get_ticker_list,
-    t("list_nasdaq100"): get_ticker_list,
-    t("list_btc"): get_ticker_list,
-}
+stock_lists = { t("list_robinhood"): get_ticker_list, t("list_sp500"): get_ticker_list, t("list_nasdaq100"): get_ticker_list, t("list_btc"): get_ticker_list }
 selected_list_name = st.sidebar.selectbox(t("sidebar_stock_list_label"), options=list(stock_lists.keys()))
-st.sidebar.markdown("---")
-st.sidebar.markdown("by Yusa Kurkcu")
+st.sidebar.markdown("---"); st.sidebar.markdown("by Yusa Kurkcu")
 
 # -----------------------------------------------------------------------------
 # Sekme 1: Hisse Taraması
 # -----------------------------------------------------------------------------
-with tab1:
-    if 'scan_results' not in st.session_state:
-        st.info(t("screener_info"))
-    
+with tabs[0]:
+    if 'scan_results' not in st.session_state: st.info(t("screener_info"))
     if st.button(t("screener_button"), type="primary"):
         tickers_to_scan = stock_lists[selected_list_name](selected_list_name)
         with st.spinner(f"'{selected_list_name}' {t('screener_spinner')}"):
@@ -305,8 +365,7 @@ with tab1:
                         if last_row['RSI_14'] < 55 and last_row['Close'] > last_row['SMA_50'] and last_row['MACD_12_26_9'] > last_row['MACDs_12_26_9'] and prev_row['MACD_12_26_9'] <= prev_row['MACDs_12_26_9']:
                             results.append({"ticker": ticker, "info": info, "technicals": data, "last_row": last_row})
                 progress_bar.empty()
-        st.session_state.scan_results = results
-        st.rerun()
+        st.session_state.scan_results = results; st.rerun()
 
     if 'scan_results' in st.session_state:
         results = st.session_state.scan_results
@@ -315,8 +374,7 @@ with tab1:
             for i, result in enumerate(results):
                 info, last_row, technicals, ticker = result['info'], result['last_row'], result['technicals'], result['ticker']
                 logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
-                expander_title = f"<img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px; vertical-align:middle;'> **{info.get('shortName', ticker)} ({ticker})** | {t('col_price')}: ${last_row['Close']:.2f}"
-                
+                expander_title = f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <div><b>{info.get('shortName', ticker)} ({ticker})</b><br><small style='color:#888;'>${last_row['Close']:.2f} | RSI: {last_row['RSI_14']:.1f}</small></div></div>"
                 with st.expander(expander_title, expanded=False):
                     col1, col2 = st.columns([1.2, 1])
                     with col1:
@@ -328,7 +386,7 @@ with tab1:
                         potential_profit = potential_return - investment_amount
                         st.metric(label=t('calculator_return_label'), value=f"${potential_return:,.2f}", delta=f"${potential_profit:,.2f}")
                     with col2:
-                        st.subheader(t('option_header'))
+                        st.subheader(f"📜 {t('option_header')}")
                         with st.spinner(t('option_spinner')): option = get_option_suggestion(ticker, last_row['Close'])
                         if option:
                             st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
@@ -342,24 +400,56 @@ with tab1:
 # -----------------------------------------------------------------------------
 # Sekme 2: Tek Hisse Analizi
 # -----------------------------------------------------------------------------
-def display_single_stock_analysis(ticker_input):
-    with st.spinner(f"{t('spinner_analysis')} {ticker_input}..."):
-        hist_data, info, news = get_stock_data(ticker_input, period="2y")
-        if hist_data is None or hist_data.empty or info is None: st.error(t("error_no_data")); return
-        # ... (Bu fonksiyonun geri kalanı önceki tam versiyon ile aynı)
-
-with tab2:
+with tabs[1]:
     st.header(t("analysis_header"))
     ticker_input_tab2 = st.text_input(t("analysis_input_label"), "NVDA", key="tab2_input").upper()
-    if ticker_input_tab2: display_single_stock_analysis(ticker_input_tab2)
+    if ticker_input_tab2: 
+        with st.spinner(f"{t('spinner_analysis')} {ticker_input_tab2}..."):
+            hist_data, info, news = get_stock_data(ticker_input_tab2, period="2y")
+            if hist_data is None or hist_data.empty or info is None: st.error(t("error_no_data"))
+            else:
+                technicals_df = calculate_technicals(hist_data.copy())
+                if technicals_df is None or technicals_df.empty: st.error(t("error_no_technicals"))
+                else:
+                    last_row = technicals_df.iloc[-1]
+                    col1, col2 = st.columns([3, 1]); col1.subheader(f"{info.get('longName', ticker_input_tab2)} ({ticker_input_tab2})")
+                    if ticker_input_tab2 not in st.session_state.watchlist:
+                        if col2.button(t("add_to_watchlist"), key=f"add_{ticker_input_tab2}"): st.session_state.watchlist.append(ticker_input_tab2); st.toast(f"{ticker_input_tab2} {t('added_to_watchlist')}"); st.rerun()
+                    
+                    c1,c2,c3,c4 = st.columns(4)
+                    current_price, prev_close = last_row['Close'], info.get('previousClose', 0)
+                    price_change = current_price - prev_close; price_change_pct = (price_change / prev_close) * 100 if prev_close else 0
+                    c1.metric(t("metric_price"), f"${current_price:.2f}", f"{price_change:.2f} ({price_change_pct:.2f}%)", delta_color="inverse" if price_change < 0 else "normal")
+                    c2.metric(t("metric_cap"), f"${(info.get('marketCap', 0) / 1e9):.1f}B"); c3.metric(t("metric_volume"), f"{info.get('volume', 0):,}"); c4.metric(t("metric_pe"), f"{info.get('trailingPE', 'N/A')}")
+                    st.divider()
+                    
+                    analysis_col, chart_col = st.columns([0.8, 1.2])
+                    with analysis_col:
+                        st.subheader(t("subheader_rule_based")); summary, recommendation = generate_analysis_summary(ticker_input_tab2, info, last_row)
+                        st.markdown(summary); st.subheader(t("subheader_company_profile")); st.info(info.get('longBusinessSummary', 'Profile not available.'))
+                    with chart_col:
+                        st.subheader(t("subheader_charts"))
+                        fig = go.Figure(); fig.add_trace(go.Candlestick(x=technicals_df.index, open=technicals_df['Open'], high=technicals_df['High'], low=technicals_df['Low'], close=technicals_df['Close'], name='Price'))
+                        fig.update_layout(xaxis_rangeslider_visible=False, template='plotly_dark', margin=dict(l=0, r=0, t=0, b=0), height=400); st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
 # Sekme 3: İzleme Listesi
 # -----------------------------------------------------------------------------
-with tab3:
+with tabs[2]:
     st.header(t("watchlist_header"))
     if not st.session_state.watchlist: st.info(t("watchlist_empty"))
     else:
-        # ... (Bu sekmenin kodu önceki tam versiyon ile aynı)
-        pass
+        for ticker in st.session_state.watchlist:
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            try:
+                info = yf.Ticker(ticker).info
+                price = info.get('currentPrice', 0); change = info.get('regularMarketChange', 0)
+                logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
+                with col1: st.markdown(f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <b>{info.get('shortName', ticker)} ({ticker})</b></div>", unsafe_allow_html=True)
+                with col2: st.metric("", f"${price:.2f}", f"{change:.2f}$")
+                with col3: st.metric("", f"${(info.get('marketCap', 0)/1e9):.1f}B")
+                with col4:
+                    if st.button(t("remove_from_watchlist"), key=f"remove_{ticker}"): st.session_state.watchlist.remove(ticker); st.rerun()
+            except Exception: st.error(f"{ticker} için veri çekilemedi.")
+            st.divider()
 
