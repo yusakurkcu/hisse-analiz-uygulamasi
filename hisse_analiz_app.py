@@ -141,7 +141,12 @@ def get_stock_data(ticker, period="1y"):
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
         df.columns = [col.lower() for col in df.columns]
-        df.ta.rsi(append=True); df.ta.macd(append=True); df.ta.sma(length=50, append=True); df.ta.sma(length=200, append=True); df.ta.atr(append=True)
+        # HATA DÜZELTMESİ: Daha sağlam bir şekilde indikatörleri hesapla
+        df.ta.rsi(close=df['close'], append=True)
+        df.ta.macd(close=df['close'], append=True)
+        df.ta.sma(close=df['close'], length=50, append=True)
+        df.ta.sma(close=df['close'], length=200, append=True)
+        df.ta.atr(high=df['high'], low=df['low'], close=df['close'], append=True)
         df.dropna(inplace=True)
     return df
 
