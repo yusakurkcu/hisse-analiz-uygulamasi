@@ -139,13 +139,14 @@ def get_stock_data(ticker, period="1y"):
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
+        df.columns = [col.lower() for col in df.columns]
         df.ta.rsi(close=df['close'], append=True)
         df.ta.macd(close=df['close'], append=True)
         df.ta.sma(close=df['close'], length=50, append=True)
         df.ta.sma(close=df['close'], length=200, append=True)
         df.ta.atr(high=df['high'], low=df['low'], close=df['close'], length=14, append=True)
         df.dropna(inplace=True)
-        df.columns = [col.lower() for col in df.columns] # Her şey bittikten sonra tekrar standartlaştır
+        df.columns = [col.lower() for col in df.columns]
     return df
 
 def get_option_suggestion(ticker, current_price, stock_target_price):
@@ -313,6 +314,8 @@ with tabs[0]:
                         st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
                         st.text(f"{t('option_expiry')}: {option['expiry']}")
                         st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
+                        sell_profit_pct = ((option['sell_target']-option['buy_target'])/option['buy_target'])*100 if option['buy_target'] > 0 else 0
+                        st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
                     else: st.info(t('option_none'))
 
     elif 'scan_results' in st.session_state and not st.session_state.scan_results:
