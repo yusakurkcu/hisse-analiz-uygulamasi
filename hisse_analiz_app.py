@@ -36,7 +36,7 @@ LANGUAGES = {
         "option_sell_target": "Satış Hedef (%50 Kar)",
         "option_call": "Alım (Call)",
         "option_spinner": "Opsiyon verileri yükleniyor...",
-        "option_none": "Bu hisse için uygun, likit bir opsiyon bulunamadı.",
+        "option_none": "Bu hisse için uygun, likit ve mantıklı maliyetli bir opsiyon bulunamadı.",
         "analysis_header": "Detaylı Hisse Senedi Analizi",
         "analysis_input_label": "Analiz için sembol girin (örn: AAPL)",
         "add_to_watchlist": "İzleme Listesine Ekle ⭐",
@@ -92,7 +92,7 @@ LANGUAGES = {
         "option_sell_target": "Sell Target (50% Profit)",
         "option_call": "Call",
         "option_spinner": "Loading option data...",
-        "option_none": "No suitable, liquid options found for this stock.",
+        "option_none": "No suitable, liquid, and reasonably priced options found.",
         "analysis_header": "Detailed Stock Analysis",
         "analysis_input_label": "Enter symbol for analysis (e.g., AAPL)",
         "add_to_watchlist": "Add to Watchlist ⭐", "remove_from_watchlist": "Remove",
@@ -168,15 +168,25 @@ def get_option_suggestion(ticker, current_price):
         calls = opts.calls
         if calls.empty: return None
         
-        # Stratejiyi Geliştir: Fiyata yakın, likit ve en ucuz olanı bul
+        # Stratejiyi Geliştir: Fiyata yakın, likit, makası dar ve en ucuz olanı bul
         candidates = calls[(calls['strike'] >= current_price) & (calls['strike'] <= current_price * 1.05)]
-        liquid_candidates = candidates[candidates['openInterest'] > 10]
         
-        if not liquid_candidates.empty:
-            best_option = liquid_candidates.sort_values(by='ask').iloc[0]
-            buy_price = best_option['ask']
-            if buy_price > 0:
-                return {"expiry": target_expiry, "strike": best_option['strike'], "buy_target": buy_price, "sell_target": buy_price * 1.5}
+        # Akıl Filtreleri
+        liquid_candidates = candidates[candidates['openInterest'] > 20] # Likidite filtresi
+        if liquid_candidates.empty: return None
+
+        liquid_candidates['spread_pct'] = (liquid_candidates['ask'] - liquid_candidates['bid']) / liquid_candidates['ask']
+        tight_spread_candidates = liquid_candidates[liquid_candidates['spread_pct'] < 0.3] # Makas filtresi
+        if tight_spread_candidates.empty: return None
+
+        affordable_candidates = tight_spread_candidates[tight_spread_candidates['ask'] < (current_price * 0.1)] # Maliyet filtresi
+        if affordable_candidates.empty: return None
+        
+        best_option = affordable_candidates.sort_values(by='ask').iloc[0]
+        buy_price = best_option['ask']
+        if buy_price > 0:
+            return {"expiry": target_expiry, "strike": best_option['strike'], "buy_target": buy_price, "sell_target": buy_price * 1.5}
+        
         return None
     except Exception:
         return None
