@@ -139,13 +139,13 @@ def get_stock_data(ticker, period="1y"):
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
-        df.columns = [col.lower() for col in df.columns]
         df.ta.rsi(close=df['close'], append=True)
         df.ta.macd(close=df['close'], append=True)
         df.ta.sma(close=df['close'], length=50, append=True)
         df.ta.sma(close=df['close'], length=200, append=True)
         df.ta.atr(high=df['high'], low=df['low'], close=df['close'], length=14, append=True)
         df.dropna(inplace=True)
+        df.columns = [col.lower() for col in df.columns] # Her şey bittikten sonra tekrar standartlaştır
     return df
 
 def get_option_suggestion(ticker, current_price, stock_target_price):
