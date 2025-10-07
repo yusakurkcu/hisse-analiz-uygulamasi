@@ -79,6 +79,16 @@ LANGUAGES = {
         "spinner_ai": "için yapay zeka analizi oluşturuluyor...",
         "summary_recommendation": "Öneri",
         "recommendation_buy": "AL", "recommendation_sell": "SAT", "recommendation_neutral": "NÖTR",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) aşırı satım bölgesinde, tepki alımı potansiyeli olabilir.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) aşırı alım bölgesinde, düzeltme riski olabilir.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) nötr bölgede.",
+        "summary_macd_bullish": "MACD, sinyal çizgisini yukarı keserek 'Al' sinyali üretiyor.",
+        "summary_macd_bearish": "MACD, sinyal çizgisini aşağı keserek 'Sat' sinyali üretiyor.",
+        "summary_sma_golden": "Fiyat, 50 ve 200 günlük ortalamaların üzerinde (Golden Cross). Güçlü yükseliş trendi.",
+        "summary_sma_death": "Fiyat, 50 ve 200 günlük ortalamaların altında (Death Cross). Düşüş trendi.",
+        "summary_sma_bullish": "Fiyat, 50 günlük ortalamanın üzerinde, kısa vadeli görünüm pozitif.",
+        "summary_sma_bearish": "Fiyat, 50 günlük ortalamanın altında, kısa vadede baskı olabilir.",
+        "gemini_prompt": "Sen kıdemli bir finansal analistsin. {company_name} ({ticker}) hissesi için Türkçe, profesyonel bir yatırımcı raporu hazırla. Rapor, temel ve teknik verileri sentezleyerek hem olumlu yönleri hem de riskleri dengeli bir şekilde vurgulamalı. Kısa ve orta vade için analiz yap. Net bir yatırım tavsiyesi verme, yatırımcının dikkat etmesi gereken noktaları özetle.\n\n**Temel Bilgiler:**\n- Şirket Adı: {company_name}\n- Sektör: {sector}\n- Piyasa Değeri: {market_cap:,} USD\n- F/K Oranı: {pe_ratio}\n- Profil: {profile}...\n\n**Teknik Göstergeler:**\n- Son Fiyat: {price:.2f} USD\n- RSI (14): {rsi:.2f}\n- MACD Durumu: {macd_status}\n- 50 Günlük Ortalama: {sma50:.2f} USD\n- 200 Günlük Ortalama: {sma200:.2f} USD",
         "watchlist_header": "Kişisel İzleme Listeniz",
         "watchlist_empty": "İzleme listeniz boş. 'Tek Hisse Analizi' sekmesinden hisse ekleyebilirsiniz.",
     },
@@ -150,6 +160,16 @@ LANGUAGES = {
         "spinner_ai": "Generating AI analysis for...",
         "summary_recommendation": "Recommendation",
         "recommendation_buy": "BUY", "recommendation_sell": "SELL", "recommendation_neutral": "NEUTRAL",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) is in the oversold region, suggesting a potential for a rebound.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) is in the overbought region, suggesting a risk of a correction.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) is in the neutral zone.",
+        "summary_macd_bullish": "MACD is generating a 'Buy' signal, crossing above its signal line.",
+        "summary_macd_bearish": "MACD is generating a 'Sell' signal, crossing below its signal line.",
+        "summary_sma_golden": "Price is above the 50-day and 200-day MAs (Golden Cross). Strong bullish trend.",
+        "summary_sma_death": "Price is below the 50-day and 200-day MAs (Death Cross). Bearish trend.",
+        "summary_sma_bullish": "Price is above the 50-day MA, indicating a positive short-term outlook.",
+        "summary_sma_bearish": "Price is below the 50-day MA, which may indicate short-term pressure.",
+        "gemini_prompt": "You are a senior financial analyst. Prepare an investor report for {company_name} ({ticker}) in professional English. The report should synthesize fundamental and technical data, highlighting both positive aspects and potential risks in a balanced manner. Analyze for the short and medium term. Do not give a direct investment recommendation, but summarize the key points an investor should consider.\n\n**Fundamental Data:**\n- Company Name: {company_name}\n- Sector: {sector}\n- Market Cap: {market_cap:,} USD\n- P/E Ratio: {pe_ratio}\n- Profile: {profile}...\n\n**Technical Indicators:**\n- Last Price: {price:.2f} USD\n- RSI (14): {rsi:.2f}\n- MACD Status: {macd_status}\n- 50-Day MA: {sma50:.2f} USD\n- 200-Day MA: {sma200:.2f} USD",
         "watchlist_header": "Your Personal Watchlist",
         "watchlist_empty": "Your watchlist is empty. You can add stocks from the 'Single Stock Analysis' tab.",
     }
@@ -203,13 +223,13 @@ def generate_analysis_summary(ticker, info, last_row):
     if rsi < 30: summary_points.append(t('summary_rsi_oversold').format(rsi=rsi)); buy_signals += 2
     elif rsi > 70: summary_points.append(t('summary_rsi_overbought').format(rsi=rsi)); sell_signals += 2
     else: summary_points.append(t('summary_rsi_neutral').format(rsi=rsi))
-    if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0): summary_points.append(LANGUAGES[st.session_state.lang]['summary_macd_bullish']); buy_signals += 1
-    else: summary_points.append(LANGUAGES[st.session_state.lang]['summary_macd_bearish']); sell_signals += 1
+    if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0): summary_points.append(t('summary_macd_bullish')); buy_signals += 1
+    else: summary_points.append(t('summary_macd_bearish')); sell_signals += 1
     current_price, sma_50, sma_200 = last_row.get('Close', 0), last_row.get('SMA_50', 0), last_row.get('SMA_200', 0)
-    if current_price > sma_50 and sma_50 > sma_200: summary_points.append(LANGUAGES[st.session_state.lang]['summary_sma_golden']); buy_signals += 2
-    elif current_price < sma_50 and current_price < sma_200: summary_points.append(LANGUAGES[st.session_state.lang]['summary_sma_death']); sell_signals += 2
-    elif current_price > sma_50: summary_points.append(LANGUAGES[st.session_state.lang]['summary_sma_bullish']); buy_signals += 1
-    else: summary_points.append(LANGUAGES[st.session_state.lang]['summary_sma_bearish']); sell_signals += 1
+    if current_price > sma_50 and sma_50 > sma_200: summary_points.append(t('summary_sma_golden')); buy_signals += 2
+    elif current_price < sma_50 and current_price < sma_200: summary_points.append(t('summary_sma_death')); sell_signals += 2
+    elif current_price > sma_50: summary_points.append(t('summary_sma_bullish')); buy_signals += 1
+    else: summary_points.append(t('summary_sma_bearish')); sell_signals += 1
     if buy_signals > sell_signals + 1: recommendation = t('recommendation_buy')
     elif sell_signals > buy_signals + 1: recommendation = t('recommendation_sell')
     else: recommendation = t('recommendation_neutral')
@@ -407,5 +427,6 @@ with tab4:
             with st.spinner(f"{t('spinner_ai')} {ticker_input_tab4}..."):
                 #... AI Analiz Kodu ...
                 st.success("Analiz tamamlandı.")
+
 
 
