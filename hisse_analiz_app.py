@@ -26,7 +26,7 @@ LANGUAGES = {
         "list_nasdaq100": "Nasdaq 100 Hisseleri",
         "list_btc": "Bitcoin Tutan Şirketler",
         "screener_header": "Optimal Alım Fırsatları",
-        "screener_info": "Bu araç, seçilen listedeki hisseleri hacim ve trend gücüyle teyit edilmiş optimal bir stratejiye göre tarar. Detaylar için bir hisseye tıklayın.",
+        "screener_info": "Bu araç, seçilen listedeki hisseleri 'yükseliş trendindeki geri çekilme' stratejisine göre tarar. Detaylar için bir hisseye tıklayın.",
         "screener_button": "Fırsatları Bul ve Stratejiyi Test Et",
         "screener_spinner": "hisseleri taranıyor ve strateji test ediliyor...",
         "screener_success": "adet potansiyel fırsat bulundu!",
@@ -38,9 +38,9 @@ LANGUAGES = {
         "col_price": "Fiyat", "col_rsi": "RSI", "col_potential": "Potansiyel",
         "detail_target_price": "Hedef Fiyat (Kısa Vade)",
         "confirmation_signals": "Teyit Sinyalleri",
+        "signal_uptrend": "✅ Uzun Vadeli Yükseliş Trendi",
+        "signal_pullback": "✅ 50-Günlük Ortalamaya Geri Çekilme",
         "signal_macd_cross": "✅ MACD Al Sinyali",
-        "signal_volume_surge": "✅ Hacim Teyidi",
-        "signal_adx_strong": "✅ Trend Güçleniyor",
         "calculator_header": "Yatırım Getirisi Hesaplayıcı",
         "calculator_input_label": "Yatırım Miktarı ($)",
         "calculator_return_label": "Tahmini Geri Dönüş",
@@ -112,7 +112,7 @@ LANGUAGES = {
     }
 }
 
-# --- YARDIMCI FONKSİYONLAR ---
+# --- YARDIMCI FONKSİYONLAR (DÜZELTİLDİ: KODUN BAŞINA TAŞINDI) ---
 def t(key): return LANGUAGES[st.session_state.lang].get(key, key)
 
 @st.cache_data(ttl=3600)
@@ -126,7 +126,34 @@ def get_fear_greed_index():
     except Exception:
         return None, None
 
-# ... (Diğer yardımcı fonksiyonlar öncekiyle aynı, sadeleştirildi) ...
+@st.cache_data(ttl=86400)
+def get_ticker_list(list_name_key):
+    try:
+        if list_name_key == t("list_robinhood"):
+            url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
+            df = pd.read_csv(url)
+            return df[~df['Symbol'].str.contains(r'\$|\.', na=False)]['Symbol'].dropna().unique().tolist()
+        elif list_name_key == t("list_sp500"):
+            url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+            df = pd.read_html(url, header=0)[0]
+            return df['Symbol'].tolist()
+        elif list_name_key == t("list_nasdaq100"):
+            url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
+            df = pd.read_html(url, header=0)[4]
+            return df['Ticker'].tolist()
+        elif list_name_key == t("list_btc"):
+            return ["MSTR", "MARA", "TSLA", "COIN", "SQ", "RIOT", "HUT", "BITF", "CLSK", "BTBT", "HIVE", "CIFR", "IREN", "WULF"]
+    except Exception as e:
+        st.error(f"Hisse listesi çekilirken hata oluştu: {e}")
+        return []
+
+@st.cache_data(ttl=900)
+def get_stock_data(ticker, period="1y"):
+    try:
+        stock = yf.Ticker(ticker)
+        return stock.history(period=period, auto_adjust=False), stock.info, stock.news
+    except Exception: return None, None, None
+
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
@@ -134,16 +161,10 @@ def calculate_technicals(df):
         df['volume_sma_20'] = df['Volume'].rolling(window=20).mean()
         df.dropna(inplace=True)
     return df
-    
-# -----------------------------------------------------------------------------
-# YENİ - Geriye Dönük Test Fonksiyonu
-# -----------------------------------------------------------------------------
-@st.cache_data(ttl=3600) # Test sonuçlarını 1 saat önbelleğe al
+
+@st.cache_data(ttl=3600)
 def backtest_strategy(tickers):
-    total_return = 0
     trades = []
-    
-    # Test için hisse sayısını sınırla (performans için)
     tickers_to_test = tickers[:100] if len(tickers) > 100 else tickers
     
     for ticker in tickers_to_test:
@@ -151,35 +172,33 @@ def backtest_strategy(tickers):
         if data is None or data.empty: continue
         
         data = calculate_technicals(data)
-        if data is None or data.empty: continue
+        if data is None or data.empty or 'SMA_200' not in data.columns: continue
         
         for i in range(1, len(data)):
-            # Alım sinyali kontrolü
-            if data['MACD_12_26_9'][i] > data['MACDs_12_26_9'][i] and data['MACD_12_26_9'][i-1] <= data['MACDs_12_26_9'][i-1]:
-                if data['Volume'][i] > data['volume_sma_20'][i] * 1.5 and data['ADX_14'][i] > 20:
-                    buy_price = data['Open'][i+1] if i+1 < len(data) else None
-                    if buy_price:
-                        # Satış sinyali ara (sonraki 21 gün içinde)
-                        sell_price = None
-                        for j in range(i+1, min(i+22, len(data))):
-                            if data['Close'][j] > buy_price * 1.15: # %15 kar al
-                                sell_price = data['Close'][j]
-                                break
-                            if data['Close'][j] < buy_price * 0.95: # %5 zarar durdur
-                                sell_price = data['Close'][j]
-                                break
-                        if sell_price is None: sell_price = data['Close'][min(i+21, len(data)-1)] # Süre sonu sat
-                        
-                        trades.append((sell_price - buy_price) / buy_price)
+            # YENİ "Geri Çekilme" Stratejisi Backtest
+            is_in_uptrend = data['Close'][i] > data['SMA_200'][i]
+            is_pullback = abs(data['Close'][i] - data['SMA_50'][i]) / data['SMA_50'][i] < 0.05
+            is_macd_crossed = data['MACD_12_26_9'][i] > data['MACDs_12_26_9'][i] and data['MACD_12_26_9'][i-1] <= data['MACDs_12_26_9'][i-1]
+            is_not_overbought = data['RSI_14'][i] < 70
+            
+            if is_in_uptrend and is_pullback and is_macd_crossed and is_not_overbought:
+                buy_price = data['Open'][i+1] if i+1 < len(data) else None
+                if buy_price:
+                    sell_price = None
+                    for j in range(i+1, min(i+22, len(data))):
+                        if data['Close'][j] > buy_price * 1.15: # %15 kar al
+                            sell_price = data['Close'][j]; break
+                        if data['Close'][j] < buy_price * 0.95: # %5 zarar durdur
+                            sell_price = data['Close'][j]; break
+                    if sell_price is None: sell_price = data['Close'][min(i+21, len(data)-1)]
+                    trades.append((sell_price - buy_price) / buy_price)
 
-    if not trades:
-        return 0, 0, 0
+    if not trades: return 0, 0, 0
         
-    total_return = sum(trades)
     win_rate = (sum(1 for trade in trades if trade > 0) / len(trades)) * 100 if trades else 0
-    return total_return * 100, win_rate, len(trades)
+    return sum(trades) * 100, win_rate, len(trades)
 
-# ... (Diğer kodlar öncekiyle aynı, sadeleştirildi) ...
+# ... (Diğer yardımcı fonksiyonlar öncekiyle aynı) ...
 
 # -----------------------------------------------------------------------------
 # Oturum Durumu Başlatma
@@ -196,14 +215,13 @@ st.markdown("""<style>/* CSS Kısaltıldı */</style>""", unsafe_allow_html=True
 # --- HEADER ve DİL SEÇİMİ ---
 # ... (Header öncekiyle aynı) ...
 
-# YENİ - Korku ve Açgözlülük Endeksi
+# --- KORKU VE AÇGÖZLÜLÜK ENDEKSİ ---
 fg_value, fg_class = get_fear_greed_index()
 if fg_value is not None:
     fg_class_tr = t("fear_greed_value_mapping").get(fg_class, fg_class)
     st.header(t("fear_greed_header"))
     st.progress(fg_value, text=f"{fg_value} - {fg_class_tr}")
     st.markdown("---")
-
 
 # -----------------------------------------------------------------------------
 # Ana Sekmeler
@@ -225,12 +243,27 @@ with tabs[0]:
     if scan_button:
         tickers_to_scan = get_ticker_list(selected_list_name)
         with st.spinner(f"'{selected_list_name}' {t('screener_spinner')}"):
-            # Geriye Dönük Test
             st.session_state.backtest_results = backtest_strategy(tickers_to_scan)
-            
-            # Canlı Tarama
             results = []
-            # ... (Canlı tarama döngüsü öncekiyle aynı) ...
+            if not tickers_to_scan: st.error("Taranacak hisse listesi alınamadı.")
+            else:
+                progress_bar = st.progress(0, text="Başlatılıyor...")
+                for i, ticker in enumerate(tickers_to_scan):
+                    progress_bar.progress((i + 1) / len(tickers_to_scan), text=f"Taranıyor: {ticker} ({i+1}/{len(tickers_to_scan)})")
+                    data, info, _ = get_stock_data(ticker, "1y")
+                    if data is None or data.empty or info is None or info.get('marketCap', 0) < 500_000_000: continue
+                    data = calculate_technicals(data)
+                    if data is not None and len(data) > 2 and all(c in data for c in ['RSI_14', 'SMA_50', 'SMA_200', 'MACD_12_26_9', 'MACDs_12_26_9']):
+                        last_row, prev_row = data.iloc[-1], data.iloc[-2]
+                        
+                        is_in_uptrend = last_row['Close'] > last_row['SMA_200']
+                        is_pullback = abs(last_row['Close'] - last_row['SMA_50']) / last_row['SMA_50'] < 0.05
+                        is_macd_crossed = last_row['MACD_12_26_9'] > last_row['MACDs_12_26_9'] and prev_row['MACD_12_26_9'] <= prev_row['MACDs_12_26_9']
+                        is_not_overbought = last_row['RSI_14'] < 70
+                        
+                        if is_in_uptrend and is_pullback and is_macd_crossed and is_not_overbought:
+                            results.append({"ticker": ticker, "info": info, "technicals": data, "last_row": last_row})
+                progress_bar.empty()
         st.session_state.scan_results = results; st.rerun()
 
     if 'backtest_results' in st.session_state and st.session_state.backtest_results:
@@ -242,8 +275,17 @@ with tabs[0]:
             b3.metric(t('backtest_total_trades'), f"{total_trades}")
     
     if 'scan_results' in st.session_state:
-        # ... (Canlı sonuçların gösterimi öncekiyle aynı) ...
-        pass
+        results = st.session_state.scan_results
+        if results:
+            st.success(f"{len(results)} {t('screener_success')}")
+            for i, result in enumerate(results):
+                # ... Sonuç kartı gösterimi (Değişiklik: Yeni Teyit sinyalleri) ...
+                with st.expander(f"**{result['info'].get('shortName', result['ticker'])}** ..."):
+                    st.subheader(t('confirmation_signals'))
+                    st.markdown(f"{t('signal_uptrend')}<br>{t('signal_pullback')}<br>{t('signal_macd_cross')}", unsafe_allow_html=True)
+                    # ... Diğer kart içeriği ...
+        else:
+            st.warning(t("screener_warning_no_stock"))
         
 # -----------------------------------------------------------------------------
 # Diğer Sekmeler (Tam ve Çalışır Durumda)
