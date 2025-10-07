@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # -----------------------------------------------------------------------------
-# Dil ve Çeviri Ayarları
+# Dil ve Çeviri Ayarları (Tamamlandı)
 # -----------------------------------------------------------------------------
 LANGUAGES = {
     "TR": {
@@ -54,6 +54,15 @@ LANGUAGES = {
         "error_no_api_key": "Lütfen kenar çubuğundaki 'Yapay Zeka Ayarları' bölümüne Gemini API anahtarınızı girin.",
         "spinner_ai": "için yapay zeka analizi oluşturuluyor...",
         "summary_recommendation": "Öneri", "recommendation_buy": "AL", "recommendation_sell": "SAT", "recommendation_neutral": "NÖTR",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) aşırı satım bölgesinde, tepki alımı potansiyeli olabilir.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) aşırı alım bölgesinde, düzeltme riski olabilir.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) nötr bölgede.",
+        "summary_macd_bullish": "MACD, sinyal çizgisini yukarı keserek 'Al' sinyali üretiyor.",
+        "summary_macd_bearish": "MACD, sinyal çizgisini aşağı keserek 'Sat' sinyali üretiyor.",
+        "summary_sma_golden": "Fiyat, 50 ve 200 günlük ortalamaların üzerinde (Golden Cross). Güçlü yükseliş trendi.",
+        "summary_sma_death": "Fiyat, 50 ve 200 günlük ortalamaların altında (Death Cross). Düşüş trendi.",
+        "summary_sma_bullish": "Fiyat, 50 günlük ortalamanın üzerinde, kısa vadeli görünüm pozitif.",
+        "summary_sma_bearish": "Fiyat, 50 günlük ortalamanın altında, kısa vadede baskı olabilir.",
         "watchlist_header": "Kişisel İzleme Listeniz", "watchlist_empty": "İzleme listeniz boş. 'Tek Hisse Analizi' sekmesinden hisse ekleyebilirsiniz.",
     },
     "EN": {
@@ -95,6 +104,15 @@ LANGUAGES = {
         "error_no_api_key": "Please enter your Gemini API Key in the 'AI Settings' section of the sidebar.",
         "spinner_ai": "Generating AI analysis for...",
         "summary_recommendation": "Recommendation", "recommendation_buy": "BUY", "recommendation_sell": "SELL", "recommendation_neutral": "NEUTRAL",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) is in the oversold region, suggesting a potential for a rebound.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) is in the overbought region, suggesting a risk of a correction.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) is in the neutral zone.",
+        "summary_macd_bullish": "MACD is generating a 'Buy' signal, crossing above its signal line.",
+        "summary_macd_bearish": "MACD is generating a 'Sell' signal, crossing below its signal line.",
+        "summary_sma_golden": "Price is above the 50-day and 200-day MAs (Golden Cross). Strong bullish trend.",
+        "summary_sma_death": "Price is below the 50-day and 200-day MAs (Death Cross). Bearish trend.",
+        "summary_sma_bullish": "Price is above the 50-day MA, indicating a positive short-term outlook.",
+        "summary_sma_bearish": "Price is below the 50-day MA, which may indicate short-term pressure.",
         "watchlist_header": "Your Personal Watchlist", "watchlist_empty": "Your watchlist is empty. You can add stocks from the 'Single Stock Analysis' tab.",
     }
 }
@@ -127,12 +145,67 @@ def calculate_technicals(df):
         df.ta.rsi(append=True); df.ta.macd(append=True); df.ta.sma(length=50, append=True); df.ta.sma(length=200, append=True)
         df.dropna(inplace=True)
     return df
-    
+
+@st.cache_data(ttl=3600)
+def get_reddit_posts(ticker, limit=10):
+    posts, subreddits = [], ['wallstreetbets', 'stocks', 'investing', 'StockMarket']
+    try:
+        for subreddit in subreddits:
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            url = f"https://www.reddit.com/r/{subreddit}/search.json?q={ticker}&sort=new&restrict_sr=on&t=day"
+            response = requests.get(url, headers=headers); response.raise_for_status()
+            for post in response.json()['data']['children']:
+                posts.append({'title': post['data']['title'], 'url': f"https://reddit.com{post['data']['permalink']}", 'subreddit': f"r/{subreddit}"})
+        return [dict(t) for t in {tuple(d.items()) for d in posts}][:limit]
+    except Exception:
+        return []
+
 def generate_analysis_summary(ticker, info, last_row):
-    # This function is the same as the previous complete version
     summary_points, buy_signals, sell_signals = [], 0, 0
-    # ... logic for RSI, MACD, SMA ...
-    return "Summary", "NEUTRAL" # Placeholder, full logic is unchanged
+    rsi = last_row.get('RSI_14', 50)
+    if rsi < 30:
+        summary_points.append(t('summary_rsi_oversold').format(rsi=rsi)); buy_signals += 2
+    elif rsi > 70:
+        summary_points.append(t('summary_rsi_overbought').format(rsi=rsi)); sell_signals += 2
+    else:
+        summary_points.append(t('summary_rsi_neutral').format(rsi=rsi))
+
+    if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0):
+        summary_points.append(t('summary_macd_bullish')); buy_signals += 1
+    else:
+        summary_points.append(t('summary_macd_bearish')); sell_signals += 1
+
+    current_price, sma_50, sma_200 = last_row.get('Close', 0), last_row.get('SMA_50', 0), last_row.get('SMA_200', 0)
+    if current_price > sma_50 and sma_50 > sma_200:
+        summary_points.append(t('summary_sma_golden')); buy_signals += 2
+    elif current_price < sma_50 and current_price < sma_200:
+        summary_points.append(t('summary_sma_death')); sell_signals += 2
+    elif current_price > sma_50:
+        summary_points.append(t('summary_sma_bullish')); buy_signals += 1
+    else:
+        summary_points.append(t('summary_sma_bearish')); sell_signals += 1
+    
+    if buy_signals > sell_signals + 1: recommendation = t('recommendation_buy')
+    elif sell_signals > buy_signals + 1: recommendation = t('recommendation_sell')
+    else: recommendation = t('recommendation_neutral')
+    
+    final_summary = f"**{info.get('longName', ticker)} ({ticker})**: \n" + "- " + "\n- ".join(summary_points)
+    return final_summary, recommendation
+
+def get_gemini_analysis(api_key, ticker, info, last_row):
+    try:
+        genai.configure(api_key=api_key); model = genai.GenerativeModel('gemini-pro')
+        macd_status = "Bullish Crossover" if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0) else "Bearish Crossover"
+        prompt_template = LANGUAGES[st.session_state.lang].get('gemini_prompt', "Analyze {ticker}")
+        prompt = prompt_template.format(
+            company_name=info.get('longName','N/A'), ticker=ticker, sector=info.get('sector','N/A'),
+            market_cap=info.get('marketCap',0), pe_ratio=info.get('trailingPE','N/A'),
+            profile=info.get('longBusinessSummary','N/A')[:500], price=last_row.get('Close',0),
+            rsi=last_row.get('RSI_14',0), macd_status=macd_status,
+            sma50=last_row.get('SMA_50',0), sma200=last_row.get('SMA_200',0)
+        )
+        return model.generate_content(prompt).text
+    except Exception as e: return f"An error occurred during AI analysis: {e}."
 
 # -----------------------------------------------------------------------------
 # Oturum Durumu Başlatma
@@ -144,7 +217,16 @@ if 'watchlist' not in st.session_state: st.session_state.watchlist = []
 # Sayfa Konfigürasyonu ve Ana Başlık
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title=t("page_title"), page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
-st.markdown("""<style>/* CSS for dark theme */</style>""", unsafe_allow_html=True) # CSS Kodu Kısaltıldı
+st.markdown("""<style>
+    .stApp { background-color: #0f1116; color: #fafafa; }
+    .st-emotion-cache-16txtl3 { background-color: #1a1c23; }
+    .st-emotion-cache-1tpl0xr p { color: #a0a0a0; }
+    .stButton>button { background-color: #00b159; color: white; border: none; }
+    .stButton>button:hover { background-color: #008c47; color: white; }
+    .stTabs [data-baseweb="tab-list"] button { color: #a0a0a0; }
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] { color: #00b159; border-bottom-color: #00b159; }
+    h1, h2, h3 { color: #00b159; }
+</style>""", unsafe_allow_html=True)
 st.title(t("app_title"))
 st.caption(t("app_caption"))
 
@@ -181,22 +263,17 @@ with tab1:
                 progress_bar = st.progress(0, text="Başlatılıyor...")
                 total_tickers = len(tickers_to_scan)
                 for i, ticker in enumerate(tickers_to_scan):
+                    # Test için döngüyü sınırla: if i > 200: break
                     progress_bar.progress((i + 1) / total_tickers, text=f"Taranıyor: {ticker} ({i+1}/{total_tickers})")
-                    
                     data, info, _ = get_stock_data(ticker, "6mo")
-                    
                     if data is None or data.empty or info is None or info.get('marketCap', 0) < 300_000_000:
                         continue
-                        
                     data = calculate_technicals(data)
-                    
-                    if data is not None and len(data) > 2 and all(col in data.columns for col in ['RSI_14', 'SMA_50', 'MACD_12_26_9', 'MACDs_12_26_9']):
+                    if data is not None and len(data) > 2 and all(c in data for c in ['RSI_14', 'SMA_50', 'MACD_12_26_9', 'MACDs_12_26_9']):
                         last_row, prev_row = data.iloc[-1], data.iloc[-2]
-
                         is_rsi_ok = last_row['RSI_14'] < 55
                         is_above_sma50 = last_row['Close'] > last_row['SMA_50']
                         is_macd_crossed = last_row['MACD_12_26_9'] > last_row['MACDs_12_26_9'] and prev_row['MACD_12_26_9'] <= prev_row['MACDs_12_26_9']
-
                         if is_rsi_ok and is_above_sma50 and is_macd_crossed:
                             results.append({
                                 t("col_symbol"): ticker,
@@ -205,7 +282,6 @@ with tab1:
                                 t("col_price"): f"${last_row['Close']:.2f}",
                                 t("col_rsi"): f"{last_row['RSI_14']:.2f}"
                             })
-                
                 progress_bar.empty()
 
         if results:
@@ -216,7 +292,7 @@ with tab1:
             st.warning(t("screener_warning_no_stock"))
 
 # -----------------------------------------------------------------------------
-# Sekme 2, 3, 4 (Tam kod dahil edildi)
+# Sekme 2: Tek Hisse Analizi
 # -----------------------------------------------------------------------------
 def display_single_stock_analysis(ticker_input):
     with st.spinner(f"{t('spinner_analysis')} {ticker_input}..."):
@@ -235,7 +311,6 @@ def display_single_stock_analysis(ticker_input):
                     st.toast(f"{ticker_input} {t('added_to_watchlist')}")
                     st.rerun()
 
-        # Metrikler
         c1, c2, c3, c4 = st.columns(4)
         current_price, prev_close = last_row['Close'], info.get('previousClose', 0)
         price_change = current_price - prev_close
@@ -254,11 +329,46 @@ def display_single_stock_analysis(ticker_input):
 
         sub_tab1, sub_tab2 = st.tabs([t('sub_tab_analysis_charts'), t('sub_tab_market_sentiment')])
         with sub_tab1:
-            #... Grafik ve Analiz Kodu ...
-            pass
+            analysis_col, chart_col = st.columns([0.8, 1.2])
+            with analysis_col:
+                st.subheader(t("subheader_rule_based"))
+                summary, recommendation = generate_analysis_summary(ticker_input, info, last_row)
+                if recommendation == t('recommendation_buy'): st.success(f"**{t('summary_recommendation')}: {recommendation}**")
+                elif recommendation == t('recommendation_sell'): st.error(f"**{t('summary_recommendation')}: {recommendation}**")
+                else: st.warning(f"**{t('summary_recommendation')}: {recommendation}**")
+                st.markdown(summary)
+                st.subheader(t("subheader_company_profile"))
+                st.info(info.get('longBusinessSummary', 'Profile not available.'))
+            
+            with chart_col:
+                st.subheader(t("subheader_charts"))
+                fig = go.Figure()
+                fig.add_trace(go.Candlestick(x=technicals_df.index, open=technicals_df['Open'], high=technicals_df['High'], low=technicals_df['Low'], close=technicals_df['Close'], name='Price'))
+                fig.add_trace(go.Scatter(x=technicals_df.index, y=technicals_df['SMA_50'], mode='lines', name='50-MA', line=dict(color='blue', width=1)))
+                fig.add_trace(go.Scatter(x=technicals_df.index, y=technicals_df.get('SMA_200'), mode='lines', name='200-MA', line=dict(color='orange', width=1)))
+                fig.update_layout(xaxis_rangeslider_visible=False, template='plotly_dark', margin=dict(l=0, r=0, t=0, b=0), height=400)
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(t("chart_caption"))
+
         with sub_tab2:
-            #... Haber ve Reddit Kodu ...
-            pass
+            news_col, reddit_col = st.columns(2)
+            with news_col:
+                st.markdown(f"##### {t('subheader_news')}")
+                if news:
+                    one_day_ago = datetime.now() - timedelta(days=1)
+                    recent_news = [n for n in news if 'providerPublishTime' in n and datetime.fromtimestamp(n['providerPublishTime']) > one_day_ago]
+                    if recent_news:
+                        for item in recent_news[:8]: st.markdown(f"**[{item['title']}]({item['link']})** - _{item['publisher']}_")
+                    else: st.write(t("info_no_news_24h"))
+                else: st.write(t("info_no_news"))
+
+            with reddit_col:
+                st.markdown(f"##### {t('subheader_reddit')}")
+                with st.spinner(t("spinner_reddit")):
+                    reddit_posts = get_reddit_posts(ticker_input)
+                    if reddit_posts:
+                        for post in reddit_posts: st.markdown(f"**[{post['title']}]({post['url']})** - _{post['subreddit']}_")
+                    else: st.write(t("info_no_reddit"))
 
 with tab2:
     st.header(t("analysis_header"))
@@ -266,21 +376,47 @@ with tab2:
     if ticker_input_tab2: 
         display_single_stock_analysis(ticker_input_tab2)
 
+# -----------------------------------------------------------------------------
+# Sekme 3: İzleme Listesi
+# -----------------------------------------------------------------------------
 with tab3:
     st.header(t("watchlist_header"))
     if not st.session_state.watchlist:
         st.info(t("watchlist_empty"))
     else:
         for ticker in st.session_state.watchlist:
-            # ... izleme listesi öğeleri ...
-            pass
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            try:
+                info = yf.Ticker(ticker).info
+                price_info = info.get('currentPrice', 0)
+                change_info = info.get('regularMarketChange', 0)
+                with col1: st.subheader(f"{info.get('shortName', ticker)} ({ticker})")
+                with col2: st.metric("Fiyat", f"${price_info:.2f}", f"{change_info:.2f}$")
+                with col3: st.metric("Piyasa Değeri", f"${(info.get('marketCap', 0)/1e9):.1f}B")
+                with col4:
+                    if st.button(t("remove_from_watchlist"), key=f"remove_{ticker}"):
+                        st.session_state.watchlist.remove(ticker)
+                        st.rerun()
+            except Exception:
+                st.error(f"{ticker} için veri çekilemedi.")
+            st.divider()
 
+# -----------------------------------------------------------------------------
+# Sekme 4: Yapay Zeka Analizi
+# -----------------------------------------------------------------------------
 with tab4:
     st.header(t("ai_header"))
     ticker_input_tab4 = st.text_input(t("ai_input_label"), "MSFT", key="tab4_input").upper()
     if st.button(t("ai_button"), type="primary", key="ai_btn"):
         if not gemini_api_key: st.error(t("error_no_api_key"))
         elif ticker_input_tab4:
-            #... AI Analiz Kodu ...
-            pass
+            with st.spinner(f"{t('spinner_ai')} {ticker_input_tab4}..."):
+                hist_data, info, _ = get_stock_data(ticker_input_tab4)
+                if info and hist_data is not None and not hist_data.empty:
+                    technicals = calculate_technicals(hist_data.copy())
+                    if technicals is not None and not technicals.empty:
+                        ai_summary = get_gemini_analysis(gemini_api_key, ticker_input_tab4, info, technicals.iloc[-1])
+                        st.markdown(ai_summary)
+                    else: st.error("AI analysis could not be generated due to lack of technical data.")
+                else: st.error("Could not fetch data for AI analysis.")
 
