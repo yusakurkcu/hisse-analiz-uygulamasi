@@ -39,6 +39,7 @@ LANGUAGES = {
         "option_contract": "Kontrat",
         "option_expiry": "Vade",
         "option_buy_target": "Alım Hedef",
+        "option_sell_target": "Satış Hedef (Hisse Hedefine Göre)",
         "option_call": "Alım (Call)",
         "option_spinner": "Opsiyon verileri yükleniyor...",
         "option_none": "Bu hisse için uygun, likit ve mantıklı maliyetli bir opsiyon bulunamadı.",
@@ -147,7 +148,7 @@ def calculate_technicals(df):
         df.dropna(inplace=True)
     return df
 
-def get_option_suggestion(ticker, current_price):
+def get_option_suggestion(ticker, current_price, stock_target_price):
     try:
         stock = yf.Ticker(ticker)
         expirations = stock.options
@@ -180,10 +181,14 @@ def get_option_suggestion(ticker, current_price):
         best_option = affordable_candidates.sort_values(by='ask').iloc[0]
         buy_price = best_option['ask']
         if buy_price > 0:
+            intrinsic_value_at_target = max(0, stock_target_price - best_option['strike'])
+            sell_target = buy_price + intrinsic_value_at_target
+            
             return {
                 "expiry": target_expiry, 
                 "strike": best_option['strike'], 
                 "buy_target": buy_price,
+                "sell_target": sell_target,
                 "delta": best_option.get('delta', 0),
                 "theta": best_option.get('theta', 0),
                 "gamma": best_option.get('gamma', 0)
@@ -341,11 +346,12 @@ with tabs[1]:
                     c1.metric(t("metric_price"), f"${current_price:.2f}", f"{price_change:.2f} ({price_change_pct:.2f}%)", delta_color="inverse" if price_change < 0 else "normal")
                     c2.metric(t("metric_cap"), f"${(info.get('marketCap', 0) / 1e9):.1f}B")
 
+                    atr_val = last_row.get('atrr_14', 0)
                     if recommendation == t("recommendation_sell"):
-                        target_price = last_row.get('close', 0) - (2 * last_row.get('atrr_14', 0))
+                        target_price = last_row.get('close', 0) - (2 * atr_val)
                         c3.metric(t("metric_target_price_bearish"), f"${target_price:.2f}", help=t("metric_target_price_bearish_help"))
                     else:
-                        target_price = last_row.get('close', 0) + (2 * last_row.get('atrr_14', 0))
+                        target_price = last_row.get('close', 0) + (2 * atr_val)
                         c3.metric(t("metric_target_price"), f"${target_price:.2f}", help=t("metric_target_price_help"))
 
                     recent_data = technicals_df.tail(90)
