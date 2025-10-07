@@ -280,6 +280,39 @@ st.sidebar.header(t("sidebar_header"))
 list_selection = st.sidebar.radio(t("list_selection_label"), (t("list_sp500"), t("list_btc")), key='stock_list_selection')
 tickers_to_scan, sectors_to_display = (stock_list_sp500, sectors_sp500) if list_selection == t("list_sp500") else (stock_list_btc, sectors_btc)
 # ... (Filtreler ve Presetler öncekiyle aynı, kısaltıldı) ...
+
+# HATA DÜZELTMESİ: Eksik filtre kodları buraya eklendi
+filter_presets = {
+    t("preset_manual"): {},
+    t("preset_strong_bullish"): {'rsi_enabled': False, 'macd_cross': True, 'sma_cross': True},
+    t("preset_reversal"): {'rsi_enabled': True, 'rsi_value': 35, 'macd_cross': False, 'sma_cross': False}
+}
+def apply_preset():
+    preset_name = st.session_state.selected_preset
+    for name, config in filter_presets.items():
+        if name == preset_name:
+            st.session_state.rsi_enabled = config.get('rsi_enabled', False)
+            st.session_state.rsi_value = config.get('rsi_value', 35)
+            st.session_state.macd_cross = config.get('macd_cross', False)
+            st.session_state.sma_cross = config.get('sma_cross', False)
+            break
+
+with st.sidebar.expander(t("sidebar_preset_expander"), expanded=True):
+    st.info(t("sidebar_preset_info"))
+    st.selectbox(t("sidebar_preset_select"), options=list(filter_presets.keys()), key='selected_preset', on_change=apply_preset)
+    st.divider()
+    st.checkbox(t("filter_rsi"), key='rsi_enabled')
+    st.slider(t("filter_rsi_slider"), 0, 100, key='rsi_value', disabled=not st.session_state.rsi_enabled)
+    st.checkbox(t("filter_macd"), key='macd_cross')
+    st.checkbox(t("filter_sma"), key='sma_cross')
+    filter_sector = st.multiselect(t("filter_sector"), options=sectors_to_display, default=[])
+    market_cap_options = {
+        t("cap_all"): (0, float('inf')), t("cap_mega"): (200e9, float('inf')), t("cap_large"): (10e9, 200e9),
+        t("cap_mid"): (2e9, 10e9), t("cap_small"): (0, 2e9)
+    }
+    selected_cap_label = st.selectbox(t("filter_market_cap"), options=list(market_cap_options.keys()))
+    min_cap, max_cap = market_cap_options[selected_cap_label]
+
 with st.sidebar.expander(t("sidebar_ai_expander")): gemini_api_key = st.text_input(t("sidebar_api_key"), type="password")
 st.sidebar.markdown("---"); st.sidebar.markdown("by Yusa Kurkcu")
 
@@ -427,6 +460,7 @@ with tab4:
             with st.spinner(f"{t('spinner_ai')} {ticker_input_tab4}..."):
                 #... AI Analiz Kodu ...
                 st.success("Analiz tamamlandı.")
+
 
 
 
