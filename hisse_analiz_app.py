@@ -17,16 +17,10 @@ LANGUAGES = {
         "tab_screener": "Fırsat Taraması",
         "tab_analysis": "Hisse Analizi",
         "tab_watchlist": "İzleme Listem",
-        "sidebar_header": "Ayarlar",
-        "sidebar_stock_list_label": "Taranacak Hisse Listesi",
-        "list_robinhood": "Robinhood'daki Tüm Hisseler",
-        "list_sp500": "S&P 500 Hisseleri",
-        "list_nasdaq100": "Nasdaq 100 Hisseleri",
-        "list_btc": "Bitcoin Tutan Şirketler",
         "screener_header": "Optimal Alım Fırsatları",
-        "screener_info": "Bu araç, seçilen listedeki hisseleri en az %5 kâr potansiyeli sunan optimal bir stratejiye göre tarar. Detaylar ve opsiyon önerileri için bir hisseye tıklayın.",
+        "screener_info": "Bu araç, Robinhood'daki hisseleri en az %5 kâr potansiyeli sunan optimal bir stratejiye göre tarar. Detaylar ve opsiyon önerileri için bir hisseye tıklayın.",
         "screener_button": "Fırsatları Bul",
-        "screener_spinner": "hisseleri taranıyor... Bu işlem seçilen listeye göre birkaç dakika sürebilir.",
+        "screener_spinner": "Robinhood hisseleri taranıyor... Bu işlem birkaç dakika sürebilir.",
         "screener_success": "adet potansiyel fırsat bulundu!",
         "screener_warning_no_stock": "Mevcut piyasa koşullarında optimal stratejiye uyan hiçbir hisse bulunamadı.",
         "col_price": "Fiyat", "col_rsi": "RSI",
@@ -51,11 +45,18 @@ LANGUAGES = {
         "spinner_analysis": "için veriler ve analiz hazırlanıyor...",
         "error_no_data": "Bu hisse için veri bulunamadı. Lütfen sembolü kontrol edin.",
         "error_no_technicals": "Teknik göstergeler hesaplanamadı. Yetersiz veri olabilir.",
-        "metric_price": "Güncel Fiyat", "metric_cap": "Piyasa Değeri", "metric_volume": "Hacim", "metric_pe": "F/K Oranı",
+        "metric_price": "Güncel Fiyat", "metric_cap": "Piyasa Değeri",
         "metric_target_price": "Fiyat Beklentisi (Kısa Vade)",
+        "metric_target_price_help": "Fiyat hedefi, hissenin son 14 günlük ortalama volatilitesinin (ATR) iki katının mevcut fiyata eklenmesiyle hesaplanır. Bu, kısa vadeli bir potansiyel hareket aralığını gösterir.",
         "subheader_rule_based": "Kural Tabanlı Teknik Analiz",
         "subheader_company_profile": "Şirket Profili",
         "subheader_charts": "Profesyonel Fiyat Grafiği",
+        "summary_recommendation": "Öneri", "recommendation_buy": "AL", "recommendation_sell": "SAT", "recommendation_neutral": "NÖTR",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) aşırı satım bölgesinde, tepki alımı potansiyeli olabilir.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) aşırı alım bölgesinde, düzeltme riski olabilir.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) nötr bölgede.",
+        "summary_macd_bullish": "MACD, sinyal çizgisini yukarı keserek 'Al' sinyali üretiyor.",
+        "summary_macd_bearish": "MACD, sinyal çizgisini aşağı keserek 'Sat' sinyali üretiyor.",
         "watchlist_header": "Kişisel İzleme Listeniz", 
         "watchlist_empty": "İzleme listeniz boş. 'Hisse Analizi' sekmesinden hisse ekleyebilirsiniz.",
     },
@@ -66,16 +67,10 @@ LANGUAGES = {
         "tab_screener": "Opportunity Scan",
         "tab_analysis": "Stock Analysis",
         "tab_watchlist": "My Watchlist",
-        "sidebar_header": "Settings",
-        "sidebar_stock_list_label": "Stock List to Scan",
-        "list_robinhood": "All Robinhood Stocks",
-        "list_sp500": "S&P 500 Stocks",
-        "list_nasdaq100": "Nasdaq 100 Stocks",
-        "list_btc": "Companies Holding Bitcoin",
         "screener_header": "Optimal Buying Opportunities",
-        "screener_info": "This tool scans stocks for opportunities with at least 5% profit potential. Click on a stock for details and option suggestions.",
+        "screener_info": "This tool scans all Robinhood stocks for opportunities with at least 5% profit potential. Click on a stock for details and option suggestions.",
         "screener_button": "Find Opportunities",
-        "screener_spinner": "stocks are being scanned...",
+        "screener_spinner": "Scanning Robinhood stocks...",
         "screener_success": "potential opportunities found!",
         "screener_warning_no_stock": "No stocks matching the optimal strategy were found.",
         "col_price": "Price", "col_rsi": "RSI",
@@ -99,11 +94,18 @@ LANGUAGES = {
         "spinner_analysis": "Preparing data and analysis for...",
         "error_no_data": "Could not find data for this stock. Please check the symbol.",
         "error_no_technicals": "Could not calculate technical indicators. There might be insufficient data.",
-        "metric_price": "Current Price", "metric_cap": "Market Cap", "metric_volume": "Volume", "metric_pe": "P/E Ratio",
+        "metric_price": "Current Price", "metric_cap": "Market Cap",
         "metric_target_price": "Price Target (Short-Term)",
+        "metric_target_price_help": "The price target is calculated by adding two times the Average True Range (ATR) of the last 14 days to the current price. This indicates a potential short-term price movement range.",
         "subheader_rule_based": "Rule-Based Technical Analysis",
         "subheader_company_profile": "Company Profile",
         "subheader_charts": "Professional Price Chart",
+        "summary_recommendation": "Recommendation", "recommendation_buy": "BUY", "recommendation_sell": "SELL", "recommendation_neutral": "NEUTRAL",
+        "summary_rsi_oversold": "RSI ({rsi:.2f}) is in the oversold region, suggesting a potential for a rebound.",
+        "summary_rsi_overbought": "RSI ({rsi:.2f}) is in the overbought region, suggesting a risk of a correction.",
+        "summary_rsi_neutral": "RSI ({rsi:.2f}) is in the neutral zone.",
+        "summary_macd_bullish": "MACD is generating a 'Buy' signal, crossing above its signal line.",
+        "summary_macd_bearish": "MACD is generating a 'Sell' signal, crossing below its signal line.",
         "watchlist_header": "Your Personal Watchlist", 
         "watchlist_empty": "Your watchlist is empty. Add stocks from the 'Stock Analysis' tab.",
     }
@@ -121,26 +123,6 @@ def get_robinhood_tickers():
     except Exception as e:
         st.error(f"Robinhood hisse listesi çekilirken hata oluştu: {e}")
         return []
-
-@st.cache_data(ttl=86400)
-def get_sp500_tickers():
-    try:
-        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        df = pd.read_html(url, header=0)[0]
-        return df['Symbol'].tolist()
-    except Exception: return []
-
-@st.cache_data(ttl=86400)
-def get_nasdaq100_tickers():
-    try:
-        url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
-        df = pd.read_html(url, header=0)[4]
-        return df['Ticker'].tolist()
-    except Exception: return []
-    
-@st.cache_data(ttl=86400)
-def get_bitcoin_holders_tickers():
-    return ["MSTR", "MARA", "TSLA", "COIN", "SQ", "RIOT", "HUT", "BITF", "CLSK", "BTBT", "HIVE", "CIFR", "IREN", "WULF"]
 
 @st.cache_data(ttl=900)
 def get_stock_data(ticker, period="1y"):
@@ -185,30 +167,18 @@ def get_option_suggestion(ticker, current_price):
         return None
 
 def generate_analysis_summary(ticker, info, last_row):
-    summary_points, buy_signals, sell_signals = [], 0, 0
-    if not isinstance(last_row, pd.Series): return "Veri yetersiz.", "NÖTR"
+    summary_points = []
+    if not isinstance(last_row, pd.Series): return "Veri yetersiz."
     
     rsi = last_row.get('RSI_14', 50)
-    if rsi < 30: summary_points.append(t('summary_rsi_oversold').format(rsi=rsi)); buy_signals += 2
-    elif rsi > 70: summary_points.append(t('summary_rsi_overbought').format(rsi=rsi)); sell_signals += 2
+    if rsi < 30: summary_points.append(t('summary_rsi_oversold').format(rsi=rsi))
+    elif rsi > 70: summary_points.append(t('summary_rsi_overbought').format(rsi=rsi))
     else: summary_points.append(t('summary_rsi_neutral').format(rsi=rsi))
 
-    if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0): summary_points.append(t('summary_macd_bullish')); buy_signals += 1
-    else: summary_points.append(t('summary_macd_bearish')); sell_signals += 1
-
-    current_price = last_row.get('Close', 0); sma_50 = last_row.get('SMA_50', 0); sma_200 = last_row.get('SMA_200', 0)
-    if sma_50 > 0 and sma_200 > 0:
-        if current_price > sma_50 and sma_50 > sma_200: summary_points.append(t('summary_sma_golden')); buy_signals += 2
-        elif current_price < sma_50 and current_price < sma_200: summary_points.append(t('summary_sma_death')); sell_signals += 2
-        elif current_price > sma_50: summary_points.append(t('summary_sma_bullish')); buy_signals += 1
-        else: summary_points.append(t('summary_sma_bearish')); sell_signals += 1
+    if last_row.get('MACD_12_26_9', 0) > last_row.get('MACDs_12_26_9', 0): summary_points.append(t('summary_macd_bullish'))
+    else: summary_points.append(t('summary_macd_bearish'))
     
-    recommendation = t('recommendation_neutral')
-    if buy_signals > sell_signals + 1: recommendation = t('recommendation_buy')
-    elif sell_signals > buy_signals + 1: recommendation = t('recommendation_sell')
-    
-    final_summary = f"**{info.get('longName', ticker)} ({ticker})**: \n" + "- " + "\n- ".join(summary_points)
-    return final_summary, recommendation
+    return f"**{info.get('longName', ticker)} ({ticker})**: \n" + "- " + "\n- ".join(summary_points)
 
 # -----------------------------------------------------------------------------
 # Oturum Durumu Başlatma
@@ -219,12 +189,15 @@ if 'watchlist' not in st.session_state: st.session_state.watchlist = []
 # -----------------------------------------------------------------------------
 # Sayfa Konfigürasyonu ve TASARIM
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title=t("page_title"), page_icon="📈", layout="wide", initial_sidebar_state="expanded")
-st.markdown("""<style>...</style>""", unsafe_allow_html=True) # CSS Kısaltıldı
+st.set_page_config(page_title=t("page_title"), page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
+st.markdown("""<style>/* CSS Kısaltıldı */</style>""", unsafe_allow_html=True)
 
-# --- HEADER ---
-LOGO_SVG = """...""" # SVG Kodu Kısaltıldı
-st.markdown(f"<div style='display: flex; align-items: center; gap: 15px; margin-bottom: 20px;'>{LOGO_SVG}<div><h1 style='margin-bottom: -10px; color: #FFFFFF;'>{t('app_title')}</h1><p style='color: #888;'>{t('app_caption')}</p></div></div>", unsafe_allow_html=True)
+# --- HEADER ve DİL SEÇİMİ ---
+LOGO_SVG = """<svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 12.25C8.48528 12.25 9.75 11.1688 9.75 9.875C9.75 8.58125 8.48528 7.5 7 7.5C5.51472 7.5 4.25 8.58125 4.25 9.875C4.25 11.1688 5.51472 12.25 7 12.25Z" stroke="#00C805" stroke-width="1.5"/><path d="M17 16.5C18.4853 16.5 19.75 15.4187 19.75 14.125C19.75 12.8312 18.4853 11.75 17 11.75C15.5147 11.75 14.25 12.8312 14.25 14.125C14.25 15.4187 15.5147 16.5 17 16.5Z" stroke="#00C805" stroke-width="1.5"/><path d="M9.75 9.875H14.25L14.25 14.125" stroke="#00C805" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 21.25C4 18.3505 6.35051 16 9.25 16H14.75C17.6495 16 20 18.3505 20 21.25" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M18.5 7.75L19.25 7" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M21.25 5L20.5 5.75" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M16 4.25L15.25 3.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/></svg>"""
+header_cols = st.columns([1, 3, 1])
+with header_cols[0]: st.markdown(f"<div style='display: flex; align-items: center; height: 100%;'>{LOGO_SVG}</div>", unsafe_allow_html=True)
+with header_cols[1]: st.markdown(f"<div><h1 style='margin-bottom: -10px; color: #FFFFFF;'>{t('app_title')}</h1><p style='color: #888;'>{t('app_caption')}</p></div>", unsafe_allow_html=True)
+with header_cols[2]: st.radio("Language / Dil", options=["TR", "EN"], key="lang", horizontal=True, label_visibility="collapsed")
 
 # -----------------------------------------------------------------------------
 # Ana Sekmeler
@@ -233,27 +206,13 @@ tab_icons = ["📈", "🔍", "⭐"]
 tabs = st.tabs([f"{icon} {label}" for icon, label in zip(tab_icons, [t('tab_screener'), t('tab_analysis'), t('tab_watchlist')])])
 
 # -----------------------------------------------------------------------------
-# Kenar Çubuğu (SIDEBAR)
-# -----------------------------------------------------------------------------
-st.sidebar.selectbox("Language / Dil", options=["TR", "EN"], key="lang")
-st.sidebar.header(t("sidebar_header"))
-stock_lists = { 
-    t("list_robinhood"): get_robinhood_tickers, 
-    t("list_sp500"): get_sp500_tickers, 
-    t("list_nasdaq100"): get_nasdaq100_tickers, 
-    t("list_btc"): get_bitcoin_holders_tickers 
-}
-selected_list_name = st.sidebar.selectbox(t("sidebar_stock_list_label"), options=list(stock_lists.keys()))
-st.sidebar.markdown("---"); st.sidebar.markdown("by Yusa Kurkcu")
-
-# -----------------------------------------------------------------------------
 # Sekme 1: Hisse Taraması
 # -----------------------------------------------------------------------------
 with tabs[0]:
     if 'scan_results' not in st.session_state: st.info(t("screener_info"))
     if st.button(t("screener_button"), type="primary"):
-        tickers_to_scan = stock_lists[selected_list_name]() # Düzeltildi
-        with st.spinner(f"'{selected_list_name}' {t('screener_spinner')}"):
+        tickers_to_scan = get_robinhood_tickers()
+        with st.spinner(t('screener_spinner')):
             results = []
             if not tickers_to_scan: st.error("Taranacak hisse listesi alınamadı.")
             else:
@@ -267,8 +226,7 @@ with tabs[0]:
                     if data is not None and len(data) > 2 and all(c in data for c in ['RSI_14', 'SMA_50', 'MACD_12_26_9', 'MACDs_12_26_9', 'ATRr_14']):
                         last_row = data.iloc[-1]
                         target_price = last_row['Close'] + (2 * last_row['ATRr_14'])
-                        if last_row['Close'] > 0:
-                            if (target_price - last_row['Close']) / last_row['Close'] < 0.05: continue
+                        if last_row['Close'] > 0 and (target_price - last_row['Close']) / last_row['Close'] < 0.05: continue
                         prev_row = data.iloc[-2]
                         if last_row['RSI_14'] < 55 and last_row['Close'] > last_row['SMA_50'] and last_row['MACD_12_26_9'] > last_row['MACDs_12_26_9'] and prev_row['MACD_12_26_9'] <= prev_row['MACDs_12_26_9']:
                             results.append({"ticker": ticker, "info": info, "technicals": data, "last_row": last_row})
@@ -305,18 +263,28 @@ with tabs[1]:
                         if col2.button(t("add_to_watchlist"), key=f"add_{ticker_input_tab2}"): st.session_state.watchlist.append(ticker_input_tab2); st.toast(f"{ticker_input_tab2} {t('added_to_watchlist')}"); st.rerun()
                     
                     c1,c2,c3 = st.columns(3)
-                    current_price, prev_close = last_row['Close'], info.get('previousClose', 0)
+                    current_price = last_row.get('Close', 0); prev_close = info.get('previousClose', 0)
                     price_change = current_price - prev_close; price_change_pct = (price_change / prev_close) * 100 if prev_close else 0
                     target_price = last_row.get('Close', 0) + (2 * last_row.get('ATRr_14', 0))
                     c1.metric(t("metric_price"), f"${current_price:.2f}", f"{price_change:.2f} ({price_change_pct:.2f}%)", delta_color="inverse" if price_change < 0 else "normal")
                     c2.metric(t("metric_cap"), f"${(info.get('marketCap', 0) / 1e9):.1f}B")
-                    c3.metric(t("metric_target_price"), f"${target_price:.2f}")
+                    c3.metric(t("metric_target_price"), f"${target_price:.2f}", help=t("metric_target_price_help"))
                     st.divider()
                     
-                    analysis_col, chart_col = st.columns([0.8, 1.2])
+                    analysis_col, chart_col = st.columns([1, 1])
                     with analysis_col:
-                        st.subheader(t("subheader_rule_based")); summary, recommendation = generate_analysis_summary(ticker_input_tab2, info, last_row)
+                        st.subheader(t("subheader_rule_based")); summary = generate_analysis_summary(ticker_input_tab2, info, last_row)
                         st.markdown(summary); st.subheader(t("subheader_company_profile")); st.info(info.get('longBusinessSummary', 'Profile not available.'))
+                        
+                        st.subheader(f"📜 {t('option_header')}")
+                        with st.spinner(t('option_spinner')): option = get_option_suggestion(ticker_input_tab2, last_row['Close'])
+                        if option:
+                            st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
+                            st.text(f"{t('option_expiry')}: {option['expiry']}")
+                            st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
+                            st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta="100%")
+                        else: st.info(t('option_none'))
+
                     with chart_col:
                         st.subheader(t("subheader_charts"))
                         fig = go.Figure(); fig.add_trace(go.Candlestick(x=technicals_df.index, open=technicals_df['Open'], high=technicals_df['High'], low=technicals_df['Low'], close=technicals_df['Close'], name='Price'))
@@ -342,4 +310,8 @@ with tabs[2]:
                     if st.button(t("remove_from_watchlist"), key=f"remove_{ticker}"): st.session_state.watchlist.remove(ticker); st.rerun()
             except Exception: st.error(f"{ticker} için veri çekilemedi.")
             st.divider()
+
+# --- FOOTER ---
+st.markdown("<hr style='border-color:#222; margin-top: 50px;'>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: #888; padding: 20px;'>by Yusa Kurkcu</div>", unsafe_allow_html=True)
 
