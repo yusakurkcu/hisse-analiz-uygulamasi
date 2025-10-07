@@ -18,8 +18,6 @@ LANGUAGES = {
         "tab_analysis": "Hisse Analizi",
         "tab_watchlist": "İzleme Listem",
         "tab_portfolio": "Portföyüm",
-        "fear_greed_header": "Piyasa Duyarlılık Endeksi",
-        "fear_greed_value_mapping": {"Extreme Fear": "Aşırı Korku", "Fear": "Korku", "Neutral": "Nötr", "Greed": "Açgözlülük", "Extreme Greed": "Aşırı Açgözlülük"},
         "sidebar_stock_list_label": "Taranacak Hisse Listesi",
         "list_robinhood": "Robinhood'daki Tüm Hisseler",
         "list_sp500": "S&P 500 Hisseleri",
@@ -27,14 +25,10 @@ LANGUAGES = {
         "list_btc": "Bitcoin Tutan Şirketler",
         "screener_header": "Optimal Alım Fırsatları",
         "screener_info": "Bu araç, seçilen listedeki hisseleri 'yükseliş trendindeki geri çekilme' stratejisine göre tarar. Detaylar için bir hisseye tıklayın.",
-        "screener_button": "Fırsatları Bul ve Stratejiyi Test Et",
-        "screener_spinner": "hisseleri taranıyor ve strateji test ediliyor...",
+        "screener_button": "Fırsatları Bul",
+        "screener_spinner": "hisseleri taranıyor...",
         "screener_success": "adet potansiyel fırsat bulundu!",
         "screener_warning_no_stock": "Mevcut piyasa koşullarında optimal stratejiye uyan hiçbir hisse bulunamadı.",
-        "backtest_header": "Strateji Geriye Dönük Test Sonuçları (Son 1 Yıl)",
-        "backtest_total_return": "Toplam Getiri",
-        "backtest_win_rate": "Kazanma Oranı",
-        "backtest_total_trades": "Toplam İşlem",
         "col_price": "Fiyat", "col_rsi": "RSI", "col_potential": "Potansiyel",
         "detail_target_price": "Hedef Fiyat (Kısa Vade)",
         "confirmation_signals": "Teyit Sinyalleri",
@@ -115,17 +109,6 @@ LANGUAGES = {
 # --- YARDIMCI FONKSİYONLAR ---
 def t(key): return LANGUAGES[st.session_state.lang].get(key, key)
 
-@st.cache_data(ttl=3600)
-def get_fear_greed_index():
-    try:
-        response = requests.get("https://api.alternative.me/fng/?limit=1")
-        data = response.json()['data'][0]
-        value = int(data['value'])
-        value_classification = data['value_classification']
-        return value, value_classification
-    except Exception:
-        return None, None
-
 @st.cache_data(ttl=86400)
 def get_ticker_list(list_name_key):
     try:
@@ -157,56 +140,85 @@ def get_stock_data(ticker, period="1y"):
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
-        df.columns = [col.lower() for col in df.columns] # DÜZELTME: Sütun adlarını küçük harfe çevir
-        df.ta.rsi(append=True); df.ta.macd(append=True); df.ta.sma(length=50, append=True); df.ta.sma(length=200, append=True); df.ta.atr(append=True); df.ta.adx(append=True)
-        if 'volume' in df.columns:
-            df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
+        df.columns = [col.lower() for col in df.columns]
+        df.ta.rsi(append=True); df.ta.macd(append=True); df.ta.sma(length=50, append=True); df.ta.sma(length=200, append=True); df.ta.atr(append=True)
         df.dropna(inplace=True)
     return df
 
-@st.cache_data(ttl=3600)
-def backtest_strategy(tickers):
-    trades = []
-    tickers_to_test = tickers[:100] if len(tickers) > 100 else tickers
-    
-    for ticker in tickers_to_test:
-        data = yf.download(ticker, period="1y", progress=False)
-        if data is None or data.empty: continue
-        
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.droplevel(0)
-
-        data = calculate_technicals(data)
-        if data is None or data.empty or 'sma_200' not in data.columns: continue
-        
-        for i in range(1, len(data)):
-            is_in_uptrend = data['close'][i] > data['sma_200'][i]
-            is_pullback = abs(data['close'][i] - data['sma_50'][i]) / data['sma_50'][i] < 0.05
-            is_macd_crossed = data['macd_12_26_9'][i] > data['macds_12_26_9'][i] and data['macd_12_26_9'][i-1] <= data['macds_12_26_9'][i-1]
-            is_not_overbought = data['rsi_14'][i] < 70
-            
-            if is_in_uptrend and is_pullback and is_macd_crossed and is_not_overbought:
-                buy_price = data['open'][i+1] if i+1 < len(data) else None
-                if buy_price:
-                    sell_price = None
-                    for j in range(i+1, min(i+22, len(data))):
-                        if data['close'][j] > buy_price * 1.15: # %15 kar al
-                            sell_price = data['close'][j]; break
-                        if data['close'][j] < buy_price * 0.95: # %5 zarar durdur
-                            sell_price = data['close'][j]; break
-                    if sell_price is None: sell_price = data['close'][min(i+21, len(data)-1)]
-                    trades.append((sell_price - buy_price) / buy_price)
-
-    if not trades: return 0, 0, 0
-    win_rate = (sum(1 for trade in trades if trade > 0) / len(trades)) * 100 if trades else 0
-    return sum(trades) * 100, win_rate, len(trades)
-    
 def get_option_suggestion(ticker, current_price, stock_target_price):
-    # ... (Bu fonksiyon öncekiyle aynı, hatasız çalışıyor) ...
-    pass
+    try:
+        stock = yf.Ticker(ticker)
+        expirations = stock.options
+        if not expirations: return None
+        
+        today = datetime.now()
+        target_expiry = None
+        for exp in expirations:
+            exp_date = datetime.strptime(exp, '%Y-%m-%d')
+            if 30 <= (exp_date - today).days <= 45:
+                target_expiry = exp; break
+        if not target_expiry: return None
+
+        opts = stock.option_chain(target_expiry)
+        calls = opts.calls
+        if calls.empty: return None
+        
+        candidates = calls[(calls['strike'] >= current_price) & (calls['strike'] <= current_price * 1.05)]
+        liquid_candidates = candidates[candidates['openInterest'] > 20]
+        if liquid_candidates.empty: return None
+
+        liquid_candidates = liquid_candidates.copy()
+        liquid_candidates.loc[:, 'spread_pct'] = (liquid_candidates['ask'] - liquid_candidates['bid']) / liquid_candidates['ask']
+        tight_spread_candidates = liquid_candidates[liquid_candidates['spread_pct'] < 0.3]
+        if tight_spread_candidates.empty: return None
+
+        affordable_candidates = tight_spread_candidates[tight_spread_candidates['ask'] < (current_price * 0.1)]
+        if affordable_candidates.empty: return None
+        
+        best_option = affordable_candidates.sort_values(by='ask').iloc[0]
+        buy_price = best_option['ask']
+        if buy_price > 0:
+            intrinsic_value_at_target = max(0, stock_target_price - best_option['strike'])
+            sell_target = buy_price + intrinsic_value_at_target
+            
+            return {
+                "expiry": target_expiry, 
+                "strike": best_option['strike'], 
+                "buy_target": buy_price,
+                "sell_target": sell_target,
+                "delta": best_option.get('delta', 0),
+                "theta": best_option.get('theta', 0),
+                "gamma": best_option.get('gamma', 0)
+            }
+        return None
+    except Exception:
+        return None
+
 def generate_analysis_summary(ticker, info, last_row):
-    # ... (Bu fonksiyon öncekiyle aynı, hatasız çalışıyor) ...
-    pass
+    summary_points, buy_signals, sell_signals = [], 0, 0
+    if not isinstance(last_row, pd.Series): return "Veri yetersiz.", "NÖTR"
+    
+    rsi = last_row.get('rsi_14', 50)
+    if rsi < 30: summary_points.append(t('summary_rsi_oversold').format(rsi=rsi)); buy_signals += 2
+    elif rsi > 70: summary_points.append(t('summary_rsi_overbought').format(rsi=rsi)); sell_signals += 2
+    else: summary_points.append(t('summary_rsi_neutral').format(rsi=rsi))
+
+    if last_row.get('macd_12_26_9', 0) > last_row.get('macds_12_26_9', 0): summary_points.append(t('summary_macd_bullish')); buy_signals += 1
+    else: summary_points.append(t('summary_macd_bearish')); sell_signals += 1
+
+    current_price = last_row.get('close', 0); sma_50 = last_row.get('sma_50', 0); sma_200 = last_row.get('sma_200', 0)
+    if sma_50 > 0 and sma_200 > 0:
+        if current_price > sma_50 and sma_50 > sma_200: summary_points.append(t('summary_sma_golden')); buy_signals += 2
+        elif current_price < sma_50 and current_price < sma_200: summary_points.append(t('summary_sma_death')); sell_signals += 2
+        elif current_price > sma_50: summary_points.append(t('summary_sma_bullish')); buy_signals += 1
+        else: summary_points.append(t('summary_sma_bearish')); sell_signals += 1
+    
+    recommendation = t('recommendation_neutral')
+    if buy_signals > sell_signals + 1: recommendation = t('recommendation_buy')
+    elif sell_signals > buy_signals + 1: recommendation = t('recommendation_sell')
+    
+    final_summary = f"**{info.get('longName', ticker)} ({ticker})**: \n" + "- " + "\n- ".join(summary_points)
+    return final_summary, recommendation
 
 # -----------------------------------------------------------------------------
 # Oturum Durumu Başlatma
@@ -220,7 +232,11 @@ if 'scan_results' not in st.session_state: st.session_state.scan_results = []
 # Sayfa Konfigürasyonu ve TASARIM
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title=t("page_title"), page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
-st.markdown("""<style>/* CSS Kısaltıldı */</style>""", unsafe_allow_html=True)
+st.markdown("""<style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .st-emotion-cache-16txtl3 { display: none; }
+</style>""", unsafe_allow_html=True)
 
 # --- HEADER ve DİL SEÇİMİ ---
 LOGO_SVG = """...""" # SVG Kısaltıldı
@@ -228,14 +244,6 @@ header_cols = st.columns([1, 3, 1])
 with header_cols[0]: st.markdown(f"<div style='display: flex; align-items: center; height: 100%;'>{LOGO_SVG}</div>", unsafe_allow_html=True)
 with header_cols[1]: st.markdown(f"<div><h1 style='margin-bottom: -10px; color: #FFFFFF;'>{t('app_title')}</h1><p style='color: #888;'>{t('app_caption')}</p></div>", unsafe_allow_html=True)
 with header_cols[2]: st.radio("Language / Dil", options=["TR", "EN"], key="lang", horizontal=True, label_visibility="collapsed")
-
-# --- KORKU VE AÇGÖZLÜLÜK ENDEKSİ ---
-fg_value, fg_class = get_fear_greed_index()
-if fg_value is not None:
-    fg_class_tr = t("fear_greed_value_mapping").get(fg_class, fg_class)
-    st.header(t("fear_greed_header"))
-    st.progress(fg_value, text=f"{fg_value} - {fg_class_tr}")
-    st.markdown("---")
 
 # -----------------------------------------------------------------------------
 # Ana Sekmeler
@@ -254,10 +262,12 @@ with tabs[0]:
         st.write(""); st.write("") # Boşluk
         scan_button = st.button(t("screener_button"), type="primary", use_container_width=True)
 
+    if not st.session_state.scan_results:
+        st.info(t("screener_info"))
+
     if scan_button:
         tickers_to_scan = get_ticker_list(selected_list_name)
         with st.spinner(f"'{selected_list_name}' {t('screener_spinner')}"):
-            st.session_state.backtest_results = backtest_strategy(tickers_to_scan)
             results = []
             if not tickers_to_scan: st.error("Taranacak hisse listesi alınamadı.")
             else:
@@ -265,51 +275,191 @@ with tabs[0]:
                 for i, ticker in enumerate(tickers_to_scan):
                     progress_bar.progress((i + 1) / len(tickers_to_scan), text=f"Taranıyor: {ticker} ({i+1}/{len(tickers_to_scan)})")
                     data, info, _ = get_stock_data(ticker, "1y")
-                    if data is None or data.empty or info is None or info.get('marketCap', 0) < 500_000_000: continue
+                    if data is None or data.empty or info is None or info.get('marketCap', 0) < 300_000_000: continue
                     data = calculate_technicals(data)
-                    if data is not None and len(data) > 2 and all(c in data.columns for c in ['rsi_14', 'sma_50', 'sma_200', 'macd_12_26_9', 'macds_12_26_9']):
-                        last_row, prev_row = data.iloc[-1], data.iloc[-2]
-                        
-                        is_in_uptrend = last_row['close'] > last_row['sma_200']
-                        is_pullback = abs(last_row['close'] - last_row['sma_50']) / last_row['sma_50'] < 0.05
-                        is_macd_crossed = last_row['macd_12_26_9'] > last_row['macds_12_26_9'] and prev_row['macd_12_26_9'] <= prev_row['macds_12_26_9']
-                        is_not_overbought = last_row['rsi_14'] < 70
-                        
-                        if is_in_uptrend and is_pullback and is_macd_crossed and is_not_overbought:
+                    if data is not None and len(data) > 2 and all(c in data.columns for c in ['rsi_14', 'sma_50', 'macd_12_26_9', 'macds_12_26_9', 'atrr_14']):
+                        last_row = data.iloc[-1]
+                        prev_row = data.iloc[-2]
+                        if last_row['rsi_14'] < 55 and last_row['close'] > last_row['sma_50'] and last_row['macd_12_26_9'] > last_row['macds_12_26_9'] and prev_row['macd_12_26_9'] <= prev_row['macds_12_26_9']:
                             results.append({"ticker": ticker, "info": info, "technicals": data, "last_row": last_row})
                 progress_bar.empty()
         st.session_state.scan_results = results; st.rerun()
 
-    if 'backtest_results' in st.session_state and st.session_state.backtest_results:
-        total_return, win_rate, total_trades = st.session_state.backtest_results
-        with st.expander(t('backtest_header'), expanded=True):
-            b1, b2, b3 = st.columns(3)
-            b1.metric(t('backtest_total_return'), f"{total_return:.2f}%")
-            b2.metric(t('backtest_win_rate'), f"{win_rate:.2f}%")
-            b3.metric(t('backtest_total_trades'), f"{total_trades}")
-    
-    if 'scan_results' in st.session_state:
+    if st.session_state.scan_results:
         results = st.session_state.scan_results
-        if results:
-            st.success(f"{len(results)} {t('screener_success')}")
-            for i, result in enumerate(results):
-                # ... (Sonuç kartları öncekiyle aynı) ...
-                pass
-        else:
-            st.warning(t("screener_warning_no_stock"))
-        
+        st.success(f"{len(results)} {t('screener_success')}")
+        for i, result in enumerate(results):
+            info, last_row, technicals, ticker = result['info'], result['last_row'], result['technicals'], result['ticker']
+            logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
+            target_price = last_row['close'] + (2 * last_row['atrr_14'])
+            potential_gain_pct = ((target_price - last_row['close']) / last_row['close']) * 100 if last_row['close'] > 0 else 0
+            expander_title = f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <div><b>{info.get('shortName', ticker)} ({ticker})</b><br><small style='color:#00C805;'>{t('col_potential')}: +{potential_gain_pct:.2f}%</small></div></div>"
+            with st.expander(expander_title, expanded=False):
+                col1, col2 = st.columns([1.2, 1])
+                with col1:
+                    st.metric(label=t('detail_target_price'), value=f"${target_price:.2f}")
+                    st.subheader(t('calculator_header'))
+                    investment_amount = st.number_input(t('calculator_input_label'), min_value=100, value=1000, step=100, key=f"invest_{i}")
+                    potential_return = (target_price / last_row['close']) * investment_amount if last_row['close'] > 0 else 0
+                    potential_profit = potential_return - investment_amount
+                    st.metric(label=t('calculator_return_label'), value=f"${potential_return:,.2f}", delta=f"${potential_profit:,.2f}")
+                with col2:
+                    st.subheader(f"📜 {t('option_header')}")
+                    with st.spinner(t('option_spinner')): option = get_option_suggestion(ticker, last_row['close'], target_price)
+                    if option:
+                        st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
+                        st.text(f"{t('option_expiry')}: {option['expiry']}")
+                        st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
+                        sell_profit_pct = ((option['sell_target']-option['buy_target'])/option['buy_target'])*100 if option['buy_target'] > 0 else 0
+                        st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
+                    else: st.info(t('option_none'))
+
+    elif 'scan_results' in st.session_state and not st.session_state.scan_results:
+        st.warning(t("screener_warning_no_stock"))
+
 # -----------------------------------------------------------------------------
-# Diğer Sekmeler (Tam ve Çalışır Durumda)
+# Sekme 2: Tek Hisse Analizi
 # -----------------------------------------------------------------------------
 with tabs[1]:
-    # ... (Bu sekmenin kodu önceki tam versiyon ile aynı) ...
-    pass
+    st.header(t("analysis_header"))
+    ticker_input_tab2 = st.text_input(t("analysis_input_label"), "NVDA", key="tab2_input").upper()
+    if ticker_input_tab2: 
+        with st.spinner(f"{t('spinner_analysis')} {ticker_input_tab2}..."):
+            hist_data, info, news = get_stock_data(ticker_input_tab2, period="2y")
+            if hist_data is None or hist_data.empty or info is None: st.error(t("error_no_data"))
+            else:
+                technicals_df = calculate_technicals(hist_data.copy())
+                if technicals_df is None or technicals_df.empty: st.error(t("error_no_technicals"))
+                else:
+                    last_row = technicals_df.iloc[-1]
+                    summary, recommendation = generate_analysis_summary(ticker_input_tab2, info, last_row)
+                    
+                    col1, col2 = st.columns([3, 1]); col1.subheader(f"{info.get('longName', ticker_input_tab2)} ({ticker_input_tab2})")
+                    if ticker_input_tab2 not in st.session_state.watchlist:
+                        if col2.button(t("add_to_watchlist"), key=f"add_{ticker_input_tab2}"): st.session_state.watchlist.append(ticker_input_tab2); st.toast(f"{ticker_input_tab2} {t('added_to_watchlist')}"); st.rerun()
+                    
+                    c1,c2,c3 = st.columns(3)
+                    current_price = last_row.get('close', 0); prev_close = info.get('previousClose', 0)
+                    price_change = current_price - prev_close; price_change_pct = (price_change / prev_close) * 100 if prev_close else 0
+                    
+                    c1.metric(t("metric_price"), f"${current_price:.2f}", f"{price_change:.2f} ({price_change_pct:.2f}%)", delta_color="inverse" if price_change < 0 else "normal")
+                    c2.metric(t("metric_cap"), f"${(info.get('marketCap', 0) / 1e9):.1f}B")
+
+                    if recommendation == t("recommendation_sell"):
+                        target_price = last_row.get('close', 0) - (2 * last_row.get('atrr_14', 0))
+                        c3.metric(t("metric_target_price_bearish"), f"${target_price:.2f}", help=t("metric_target_price_bearish_help"))
+                    else:
+                        target_price = last_row.get('close', 0) + (2 * last_row.get('atrr_14', 0))
+                        c3.metric(t("metric_target_price"), f"${target_price:.2f}", help=t("metric_target_price_help"))
+
+                    recent_data = technicals_df.tail(90)
+                    support1 = recent_data['low'].min()
+                    resistance1 = recent_data['high'].max()
+                    c4, c5 = st.columns(2)
+                    c4.metric(t("metric_support_1"), f"${support1:.2f}")
+                    c5.metric(t("metric_resistance_1"), f"${resistance1:.2f}")
+                    st.divider()
+                    
+                    analysis_col, chart_col = st.columns([1, 1])
+                    with analysis_col:
+                        st.subheader(t("subheader_rule_based"))
+                        st.markdown(summary); st.subheader(t("subheader_company_profile")); st.info(info.get('longBusinessSummary', 'Profile not available.'))
+                        
+                        st.subheader(f"📜 {t('option_header')}")
+                        with st.spinner(t('option_spinner')): option = get_option_suggestion(ticker_input_tab2, last_row['close'], target_price)
+                        if option:
+                            st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
+                            st.text(f"{t('option_expiry')}: {option['expiry']}")
+                            st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
+                            sell_profit_pct = ((option['sell_target'] - option['buy_target']) / option['buy_target']) * 100 if option['buy_target'] > 0 else 0
+                            st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
+                        else: st.info(t('option_none'))
+
+                    with chart_col:
+                        st.subheader(t("subheader_charts"))
+                        fig = go.Figure(); fig.add_trace(go.Candlestick(x=technicals_df.index, open=technicals_df['open'], high=technicals_df['high'], low=technicals_df['low'], close=technicals_df['close'], name='Price'))
+                        fig.add_hline(y=support1, line_dash="dash", line_color="green", annotation_text=t("metric_support_1"), annotation_position="bottom right")
+                        fig.add_hline(y=resistance1, line_dash="dash", line_color="red", annotation_text=t("metric_resistance_1"), annotation_position="top right")
+                        fig.update_layout(xaxis_rangeslider_visible=False, template='plotly_dark', margin=dict(l=0, r=0, t=0, b=0), height=450); st.plotly_chart(fig, use_container_width=True)
+
+# -----------------------------------------------------------------------------
+# Sekme 3: İzleme Listesi
+# -----------------------------------------------------------------------------
 with tabs[2]:
-    # ... (Bu sekmenin kodu önceki tam versiyon ile aynı) ...
-    pass
+    st.header(t("watchlist_header"))
+    if not st.session_state.watchlist: st.info(t("watchlist_empty"))
+    else:
+        for ticker in st.session_state.watchlist:
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            try:
+                info = yf.Ticker(ticker).info
+                price = info.get('currentPrice', 0); change = info.get('regularMarketChange', 0)
+                logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
+                with col1: st.markdown(f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <b>{info.get('shortName', ticker)} ({ticker})</b></div>", unsafe_allow_html=True)
+                with col2: st.metric("", f"${price:.2f}", f"{change:.2f}$")
+                with col3: st.metric("", f"${(info.get('marketCap', 0)/1e9):.1f}B")
+                with col4:
+                    if st.button(t("remove_from_watchlist"), key=f"remove_{ticker}"): st.session_state.watchlist.remove(ticker); st.rerun()
+            except Exception: st.error(f"{ticker} için veri çekilemedi.")
+            st.divider()
+
+# -----------------------------------------------------------------------------
+# Sekme 4: Portföyüm
+# -----------------------------------------------------------------------------
 with tabs[3]:
-    # ... (Bu sekmenin kodu önceki tam versiyon ile aynı) ...
-    pass
+    st.header(t("portfolio_header"))
+    with st.form("portfolio_form"):
+        st.subheader(t("portfolio_add_header"))
+        cols = st.columns([2, 1, 1])
+        ticker = cols[0].text_input(t("portfolio_ticker")).upper()
+        shares = cols[1].number_input(t("portfolio_shares"), min_value=0.0, format="%.4f")
+        cost = cols[2].number_input(t("portfolio_cost"), min_value=0.0, format="%.2f")
+        submitted = st.form_submit_button(t("portfolio_add_button"))
+        if submitted and ticker and shares > 0 and cost > 0:
+            st.session_state.portfolio.append({"ticker": ticker, "shares": shares, "cost": cost})
+            st.rerun()
+
+    st.markdown("---")
+    if not st.session_state.portfolio: st.info(t("portfolio_empty"))
+    else:
+        total_portfolio_value = 0; total_portfolio_cost = 0
+        for i, pos in enumerate(st.session_state.portfolio):
+            try:
+                info = yf.Ticker(pos['ticker']).info
+                current_price = info.get('currentPrice', 0)
+                cost_basis = pos['shares'] * pos['cost']; current_value = pos['shares'] * current_price
+                total_pl = current_value - cost_basis; total_pl_pct = (total_pl / cost_basis) * 100 if cost_basis > 0 else 0
+                total_portfolio_value += current_value; total_portfolio_cost += cost_basis
+                
+                with st.container():
+                    st.markdown(f"#### {info.get('shortName', pos['ticker'])} ({pos['ticker']})")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric(label=t("portfolio_current_value"), value=f"${current_value:,.2f}")
+                    c2.metric(label=t("portfolio_pl"), value=f"${total_pl:,.2f}", delta=f"{total_pl_pct:.2f}%")
+                    
+                    hist = yf.Ticker(pos['ticker']).history(period="6mo"); tech = calculate_technicals(hist)
+                    if tech is not None and not tech.empty:
+                        last_row = tech.iloc[-1]; _, recommendation = generate_analysis_summary(pos['ticker'], info, last_row)
+                        action_rec = t("recommendation_hold")
+                        if recommendation == t("recommendation_buy"): action_rec = t("recommendation_add")
+                        elif recommendation == t("recommendation_sell"): action_rec = t("recommendation_sell_strong")
+                        c3.metric(label=t("portfolio_recommendation"), value=action_rec)
+
+                        recent_data = tech.tail(90)
+                        support1 = recent_data['low'].min(); resistance1 = recent_data['high'].max()
+                        st.text(f"🎯 {t('sell_target')}: ${resistance1:.2f} | 🛑 {t('stop_loss')}: ${support1:.2f}")
+
+                    if st.button(t("delete_position"), key=f"delete_{i}"):
+                        st.session_state.portfolio.pop(i); st.rerun()
+                st.markdown("---")
+            except Exception: st.error(f"{pos['ticker']} için analiz oluşturulamadı.")
+        
+        overall_pl = total_portfolio_value - total_portfolio_cost
+        overall_pl_pct = (overall_pl / total_portfolio_cost) * 100 if total_portfolio_cost > 0 else 0
+        st.header("Portföy Özeti")
+        p1, p2 = st.columns(2)
+        p1.metric("Toplam Portföy Değeri", f"${total_portfolio_value:,.2f}")
+        p2.metric("Toplam Kâr/Zarar", f"${overall_pl:,.2f}", delta=f"{overall_pl_pct:.2f}%")
 
 # --- FOOTER ---
 st.markdown("<hr style='border-color:#222; margin-top: 50px;'>", unsafe_allow_html=True)
