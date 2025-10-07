@@ -31,10 +31,6 @@ LANGUAGES = {
         "screener_warning_no_stock": "Mevcut piyasa koşullarında optimal stratejiye uyan hiçbir hisse bulunamadı.",
         "col_price": "Fiyat", "col_rsi": "RSI", "col_potential": "Potansiyel",
         "detail_target_price": "Hedef Fiyat (Kısa Vade)",
-        "confirmation_signals": "Teyit Sinyalleri",
-        "signal_uptrend": "✅ Uzun Vadeli Yükseliş Trendi",
-        "signal_pullback": "✅ 50-Günlük Ortalamaya Geri Çekilme",
-        "signal_macd_cross": "✅ MACD Al Sinyali",
         "calculator_header": "Yatırım Getirisi Hesaplayıcı",
         "calculator_input_label": "Yatırım Miktarı ($)",
         "calculator_return_label": "Tahmini Geri Dönüş",
@@ -141,12 +137,11 @@ def get_stock_data(ticker, period="1y"):
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
         df.columns = [col.lower() for col in df.columns]
-        # HATA DÜZELTMESİ: Daha sağlam bir şekilde indikatörleri hesapla
         df.ta.rsi(close=df['close'], append=True)
         df.ta.macd(close=df['close'], append=True)
         df.ta.sma(close=df['close'], length=50, append=True)
         df.ta.sma(close=df['close'], length=200, append=True)
-        df.ta.atr(high=df['high'], low=df['low'], close=df['close'], append=True)
+        df.ta.atr(high=df['high'], low=df['low'], close=df['close'], length=14, append=True)
         df.dropna(inplace=True)
     return df
 
