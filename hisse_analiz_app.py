@@ -163,7 +163,8 @@ def run_optimal_scan():
                 
             data = calculate_technicals(data)
             
-            if data is not None and len(data) > 2:
+            # HATA DÜZELTMESİ: Teknik göstergelerin varlığını kontrol et
+            if data is not None and len(data) > 2 and all(col in data.columns for col in ['RSI_14', 'SMA_50', 'MACD_12_26_9', 'MACDs_12_26_9']):
                 last_row, prev_row = data.iloc[-1], data.iloc[-2]
 
                 is_rsi_ok = last_row['RSI_14'] < 55
@@ -275,4 +276,5 @@ with tab4:
         elif ticker_input_tab4:
             #... (AI Analiz Kodu)
             pass
+
 
