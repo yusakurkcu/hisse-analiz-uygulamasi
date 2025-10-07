@@ -24,12 +24,12 @@ LANGUAGES = {
         "list_nasdaq100": "Nasdaq 100 Hisseleri",
         "list_btc": "Bitcoin Tutan Şirketler",
         "screener_header": "Optimal Alım Fırsatları",
-        "screener_info": "Bu araç, seçilen listedeki hisseleri en az %5 kâr potansiyeli sunan optimal bir stratejiye göre tarar. Detaylar ve opsiyon analizleri için bir hisseye tıklayın.",
+        "screener_info": "Bu araç, seçilen listedeki hisseleri optimal bir stratejiye göre tarar. Detaylar ve opsiyon analizleri için bir hisseye tıklayın.",
         "screener_button": "Fırsatları Bul",
         "screener_spinner": "hisseleri taranıyor... Bu işlem seçilen listeye göre birkaç dakika sürebilir.",
         "screener_success": "adet potansiyel fırsat bulundu!",
         "screener_warning_no_stock": "Mevcut piyasa koşullarında optimal stratejiye uyan hiçbir hisse bulunamadı.",
-        "col_price": "Fiyat", "col_rsi": "RSI",
+        "col_price": "Fiyat", "col_rsi": "RSI", "col_potential": "Potansiyel",
         "detail_target_price": "Hedef Fiyat (Kısa Vade)",
         "calculator_header": "Yatırım Getirisi Hesaplayıcı",
         "calculator_input_label": "Yatırım Miktarı ($)",
@@ -111,12 +111,12 @@ LANGUAGES = {
         "list_nasdaq100": "Nasdaq 100 Stocks",
         "list_btc": "Companies Holding Bitcoin",
         "screener_header": "Optimal Buying Opportunities",
-        "screener_info": "This tool scans stocks in the selected list for opportunities with at least 5% profit potential. Click on a stock for details and option analysis.",
+        "screener_info": "This tool scans stocks in the selected list based on an optimal strategy. Click on a stock for details and option analysis.",
         "screener_button": "Find Opportunities",
         "screener_spinner": "stocks are being scanned...",
         "screener_success": "potential opportunities found!",
         "screener_warning_no_stock": "No stocks matching the optimal strategy were found.",
-        "col_price": "Price", "col_rsi": "RSI",
+        "col_price": "Price", "col_rsi": "RSI", "col_potential": "Potential",
         "detail_target_price": "Target Price (Short-Term)",
         "calculator_header": "Investment Return Calculator",
         "calculator_input_label": "Investment Amount ($)",
@@ -127,7 +127,6 @@ LANGUAGES = {
         "option_expiry": "Expiry",
         "option_buy_target": "Buy Target",
         "option_sell_target": "Sell Target (at Stock Target)",
-        "option_profit_potential": "Potential Profit",
         "option_call": "Call",
         "option_spinner": "Loading option data...",
         "option_none": "No suitable, liquid, and reasonably priced options found.",
@@ -186,13 +185,12 @@ LANGUAGES = {
     }
 }
 
-# --- YARDIMCI FONKSİYONLAR (DÜZELTİLDİ: KODUN BAŞINA TAŞINDI) ---
+# --- YARDIMCI FONKSİYONLAR ---
 def t(key): return LANGUAGES[st.session_state.lang].get(key, key)
 
 @st.cache_data(ttl=86400)
 def get_ticker_list(list_name_key):
     try:
-        # We use the key from the selectbox to determine which function to call
         if list_name_key == t("list_robinhood"):
             url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
             df = pd.read_csv(url)
@@ -315,11 +313,11 @@ st.set_page_config(page_title=t("page_title"), page_icon="📈", layout="wide", 
 st.markdown("""<style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    /* Diğer CSS Kuralları */
+    .st-emotion-cache-16txtl3 { display: none; }
 </style>""", unsafe_allow_html=True)
 
 # --- HEADER ve DİL SEÇİMİ ---
-LOGO_SVG = """<svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 12.25C8.48528 12.25 9.75 11.1688 9.75 9.875C9.75 8.58125 8.48528 7.5 7 7.5C5.51472 7.5 4.25 8.58125 4.25 9.875C4.25 11.1688 5.51472 12.25 7 12.25Z" stroke="#00C805" stroke-width="1.5"/><path d="M17 16.5C18.4853 16.5 19.75 15.4187 19.75 14.125C19.75 12.8312 18.4853 11.75 17 11.75C15.5147 11.75 14.25 12.8312 14.25 14.125C14.25 15.4187 15.5147 16.5 17 16.5Z" stroke="#00C805" stroke-width="1.5"/><path d="M9.75 9.875H14.25L14.25 14.125" stroke="#00C805" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 21.25C4 18.3505 6.35051 16 9.25 16H14.75C17.6495 16 20 18.3505 20 21.25" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M18.5 7.75L19.25 7" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M21.25 5L20.5 5.75" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/><path d="M16 4.25L15.25 3.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/></svg>"""
+LOGO_SVG = """...""" # SVG Kısaltıldı
 header_cols = st.columns([1, 3, 1])
 with header_cols[0]: st.markdown(f"<div style='display: flex; align-items: center; height: 100%;'>{LOGO_SVG}</div>", unsafe_allow_html=True)
 with header_cols[1]: st.markdown(f"<div><h1 style='margin-bottom: -10px; color: #FFFFFF;'>{t('app_title')}</h1><p style='color: #888;'>{t('app_caption')}</p></div>", unsafe_allow_html=True)
@@ -339,11 +337,11 @@ with tabs[0]:
     with col1:
         selected_list_name = st.selectbox(t("sidebar_stock_list_label"), options=[t("list_robinhood"), t("list_sp500"), t("list_nasdaq100"), t("list_btc")])
     with col2:
-        st.write("") # Boşluk için
-        st.write("") # Boşluk için
+        st.write("") # Boşluk
+        st.write("") # Boşluk
         scan_button = st.button(t("screener_button"), type="primary", use_container_width=True)
 
-    if 'scan_results' not in st.session_state or not st.session_state.scan_results:
+    if not st.session_state.scan_results:
         st.info(t("screener_info"))
 
     if scan_button:
@@ -353,31 +351,50 @@ with tabs[0]:
             if not tickers_to_scan: st.error("Taranacak hisse listesi alınamadı.")
             else:
                 progress_bar = st.progress(0, text="Başlatılıyor...")
-                total_tickers = len(tickers_to_scan)
                 for i, ticker in enumerate(tickers_to_scan):
-                    progress_bar.progress((i + 1) / total_tickers, text=f"Taranıyor: {ticker} ({i+1}/{total_tickers})")
+                    progress_bar.progress((i + 1) / len(tickers_to_scan), text=f"Taranıyor: {ticker} ({i+1}/{len(tickers_to_scan)})")
                     data, info, _ = get_stock_data(ticker, "1y")
                     if data is None or data.empty or info is None or info.get('marketCap', 0) < 300_000_000: continue
                     data = calculate_technicals(data)
                     if data is not None and len(data) > 2 and all(c in data for c in ['RSI_14', 'SMA_50', 'MACD_12_26_9', 'MACDs_12_26_9', 'ATRr_14']):
                         last_row = data.iloc[-1]
-                        target_price = last_row['Close'] + (2 * last_row['ATRr_14'])
-                        if last_row['Close'] > 0 and (target_price - last_row['Close']) / last_row['Close'] < 0.05: continue
                         prev_row = data.iloc[-2]
                         if last_row['RSI_14'] < 55 and last_row['Close'] > last_row['SMA_50'] and last_row['MACD_12_26_9'] > last_row['MACDs_12_26_9'] and prev_row['MACD_12_26_9'] <= prev_row['MACDs_12_26_9']:
                             results.append({"ticker": ticker, "info": info, "technicals": data, "last_row": last_row})
                 progress_bar.empty()
         st.session_state.scan_results = results; st.rerun()
 
-    if 'scan_results' in st.session_state:
+    if st.session_state.scan_results:
         results = st.session_state.scan_results
-        if results:
-            st.success(f"{len(results)} {t('screener_success')}")
-            for i, result in enumerate(results):
-                # ... (Sonuç kartları öncekiyle aynı) ...
-                pass
-        elif len(st.session_state.scan_results) == 0:
-            st.warning(t("screener_warning_no_stock"))
+        st.success(f"{len(results)} {t('screener_success')}")
+        for i, result in enumerate(results):
+            info, last_row, technicals, ticker = result['info'], result['last_row'], result['technicals'], result['ticker']
+            logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
+            target_price = last_row['Close'] + (2 * last_row['ATRr_14'])
+            potential_gain_pct = ((target_price - last_row['Close']) / last_row['Close']) * 100 if last_row['Close'] > 0 else 0
+            expander_title = f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <div><b>{info.get('shortName', ticker)} ({ticker})</b><br><small style='color:#00C805;'>{t('col_potential')}: +{potential_gain_pct:.2f}%</small></div></div>"
+            with st.expander(expander_title, expanded=False):
+                col1, col2 = st.columns([1.2, 1])
+                with col1:
+                    st.metric(label=t('detail_target_price'), value=f"${target_price:.2f}")
+                    st.subheader(t('calculator_header'))
+                    investment_amount = st.number_input(t('calculator_input_label'), min_value=100, value=1000, step=100, key=f"invest_{i}")
+                    potential_return = (target_price / last_row['Close']) * investment_amount if last_row['Close'] > 0 else 0
+                    potential_profit = potential_return - investment_amount
+                    st.metric(label=t('calculator_return_label'), value=f"${potential_return:,.2f}", delta=f"${potential_profit:,.2f}")
+                with col2:
+                    st.subheader(f"📜 {t('option_header')}")
+                    with st.spinner(t('option_spinner')): option = get_option_suggestion(ticker, last_row['Close'], target_price)
+                    if option:
+                        st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
+                        st.text(f"{t('option_expiry')}: {option['expiry']}")
+                        st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
+                        sell_profit_pct = ((option['sell_target']-option['buy_target'])/option['buy_target'])*100 if option['buy_target'] > 0 else 0
+                        st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
+                    else: st.info(t('option_none'))
+
+    elif 'scan_results' in st.session_state and not st.session_state.scan_results:
+        st.warning(t("screener_warning_no_stock"))
 
 # -----------------------------------------------------------------------------
 # Sekme 2: Tek Hisse Analizi
@@ -395,8 +412,54 @@ with tabs[1]:
                 else:
                     last_row = technicals_df.iloc[-1]
                     summary, recommendation = generate_analysis_summary(ticker_input_tab2, info, last_row)
-                    # ... (Bu sekmenin tam kodu öncekiyle aynı) ...
-                    pass
+                    
+                    col1, col2 = st.columns([3, 1]); col1.subheader(f"{info.get('longName', ticker_input_tab2)} ({ticker_input_tab2})")
+                    if ticker_input_tab2 not in st.session_state.watchlist:
+                        if col2.button(t("add_to_watchlist"), key=f"add_{ticker_input_tab2}"): st.session_state.watchlist.append(ticker_input_tab2); st.toast(f"{ticker_input_tab2} {t('added_to_watchlist')}"); st.rerun()
+                    
+                    c1,c2,c3 = st.columns(3)
+                    current_price = last_row.get('Close', 0); prev_close = info.get('previousClose', 0)
+                    price_change = current_price - prev_close; price_change_pct = (price_change / prev_close) * 100 if prev_close else 0
+                    
+                    c1.metric(t("metric_price"), f"${current_price:.2f}", f"{price_change:.2f} ({price_change_pct:.2f}%)", delta_color="inverse" if price_change < 0 else "normal")
+                    c2.metric(t("metric_cap"), f"${(info.get('marketCap', 0) / 1e9):.1f}B")
+
+                    if recommendation == t("recommendation_sell"):
+                        target_price = last_row.get('Close', 0) - (2 * last_row.get('ATRr_14', 0))
+                        c3.metric(t("metric_target_price_bearish"), f"${target_price:.2f}", help=t("metric_target_price_bearish_help"))
+                    else:
+                        target_price = last_row.get('Close', 0) + (2 * last_row.get('ATRr_14', 0))
+                        c3.metric(t("metric_target_price"), f"${target_price:.2f}", help=t("metric_target_price_help"))
+
+                    recent_data = technicals_df.tail(90)
+                    support1 = recent_data['Low'].min()
+                    resistance1 = recent_data['High'].max()
+                    c4, c5 = st.columns(2)
+                    c4.metric(t("metric_support_1"), f"${support1:.2f}")
+                    c5.metric(t("metric_resistance_1"), f"${resistance1:.2f}")
+                    st.divider()
+                    
+                    analysis_col, chart_col = st.columns([1, 1])
+                    with analysis_col:
+                        st.subheader(t("subheader_rule_based"))
+                        st.markdown(summary); st.subheader(t("subheader_company_profile")); st.info(info.get('longBusinessSummary', 'Profile not available.'))
+                        
+                        st.subheader(f"📜 {t('option_header')}")
+                        with st.spinner(t('option_spinner')): option = get_option_suggestion(ticker_input_tab2, last_row['Close'], target_price)
+                        if option:
+                            st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
+                            st.text(f"{t('option_expiry')}: {option['expiry']}")
+                            st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
+                            sell_profit_pct = ((option['sell_target'] - option['buy_target']) / option['buy_target']) * 100 if option['buy_target'] > 0 else 0
+                            st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
+                        else: st.info(t('option_none'))
+
+                    with chart_col:
+                        st.subheader(t("subheader_charts"))
+                        fig = go.Figure(); fig.add_trace(go.Candlestick(x=technicals_df.index, open=technicals_df['Open'], high=technicals_df['High'], low=technicals_df['Low'], close=technicals_df['Close'], name='Price'))
+                        fig.add_hline(y=support1, line_dash="dash", line_color="green", annotation_text=t("metric_support_1"), annotation_position="bottom right")
+                        fig.add_hline(y=resistance1, line_dash="dash", line_color="red", annotation_text=t("metric_resistance_1"), annotation_position="top right")
+                        fig.update_layout(xaxis_rangeslider_visible=False, template='plotly_dark', margin=dict(l=0, r=0, t=0, b=0), height=450); st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
 # Sekme 3: İzleme Listesi
@@ -406,9 +469,19 @@ with tabs[2]:
     if not st.session_state.watchlist: st.info(t("watchlist_empty"))
     else:
         for ticker in st.session_state.watchlist:
-            # ... (Bu sekmenin tam kodu öncekiyle aynı) ...
-            pass
-
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            try:
+                info = yf.Ticker(ticker).info
+                price = info.get('currentPrice', 0); change = info.get('regularMarketChange', 0)
+                logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
+                with col1: st.markdown(f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <b>{info.get('shortName', ticker)} ({ticker})</b></div>", unsafe_allow_html=True)
+                with col2: st.metric("", f"${price:.2f}", f"{change:.2f}$")
+                with col3: st.metric("", f"${(info.get('marketCap', 0)/1e9):.1f}B")
+                with col4:
+                    if st.button(t("remove_from_watchlist"), key=f"remove_{ticker}"): st.session_state.watchlist.remove(ticker); st.rerun()
+            except Exception: st.error(f"{ticker} için veri çekilemedi.")
+            st.divider()
+            
 # -----------------------------------------------------------------------------
 # Sekme 4: Portföyüm
 # -----------------------------------------------------------------------------
@@ -428,8 +501,44 @@ with tabs[3]:
     st.markdown("---")
     if not st.session_state.portfolio: st.info(t("portfolio_empty"))
     else:
-        # ... (Bu sekmenin tam kodu öncekiyle aynı) ...
-        pass
+        total_portfolio_value = 0; total_portfolio_cost = 0
+        for i, pos in enumerate(st.session_state.portfolio):
+            try:
+                info = yf.Ticker(pos['ticker']).info
+                current_price = info.get('currentPrice', 0)
+                cost_basis = pos['shares'] * pos['cost']; current_value = pos['shares'] * current_price
+                total_pl = current_value - cost_basis; total_pl_pct = (total_pl / cost_basis) * 100 if cost_basis > 0 else 0
+                total_portfolio_value += current_value; total_portfolio_cost += cost_basis
+                
+                with st.container():
+                    st.markdown(f"#### {info.get('shortName', pos['ticker'])} ({pos['ticker']})")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric(label=t("portfolio_current_value"), value=f"${current_value:,.2f}")
+                    c2.metric(label=t("portfolio_pl"), value=f"${total_pl:,.2f}", delta=f"{total_pl_pct:.2f}%")
+                    
+                    hist = yf.Ticker(pos['ticker']).history(period="6mo"); tech = calculate_technicals(hist)
+                    if tech is not None and not tech.empty:
+                        last_row = tech.iloc[-1]; _, recommendation = generate_analysis_summary(pos['ticker'], info, last_row)
+                        action_rec = t("recommendation_hold")
+                        if recommendation == t("recommendation_buy"): action_rec = t("recommendation_add")
+                        elif recommendation == t("recommendation_sell"): action_rec = t("recommendation_sell_strong")
+                        c3.metric(label=t("portfolio_recommendation"), value=action_rec)
+
+                        recent_data = tech.tail(90)
+                        support1 = recent_data['Low'].min(); resistance1 = recent_data['High'].max()
+                        st.text(f"🎯 {t('sell_target')}: ${resistance1:.2f} | 🛑 {t('stop_loss')}: ${support1:.2f}")
+
+                    if st.button(t("delete_position"), key=f"delete_{i}"):
+                        st.session_state.portfolio.pop(i); st.rerun()
+                st.markdown("---")
+            except Exception: st.error(f"{pos['ticker']} için analiz oluşturulamadı.")
+        
+        overall_pl = total_portfolio_value - total_portfolio_cost
+        overall_pl_pct = (overall_pl / total_portfolio_cost) * 100 if total_portfolio_cost > 0 else 0
+        st.header("Portföy Özeti")
+        p1, p2 = st.columns(2)
+        p1.metric("Toplam Portföy Değeri", f"${total_portfolio_value:,.2f}")
+        p2.metric("Toplam Kâr/Zarar", f"${overall_pl:,.2f}", delta=f"{overall_pl_pct:.2f}%")
 
 # --- FOOTER ---
 st.markdown("<hr style='border-color:#222; margin-top: 50px;'>", unsafe_allow_html=True)
