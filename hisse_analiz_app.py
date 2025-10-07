@@ -39,7 +39,6 @@ LANGUAGES = {
         "option_contract": "Kontrat",
         "option_expiry": "Vade",
         "option_buy_target": "Alım Hedef",
-        "option_sell_target": "Satış Hedef (Hisse Hedefine Göre)",
         "option_call": "Alım (Call)",
         "option_spinner": "Opsiyon verileri yükleniyor...",
         "option_none": "Bu hisse için uygun, likit ve mantıklı maliyetli bir opsiyon bulunamadı.",
@@ -132,14 +131,14 @@ def get_stock_data(ticker, period="1y"):
         stock = yf.Ticker(ticker)
         data, info, news = stock.history(period=period, auto_adjust=False), stock.info, stock.news
         if not data.empty:
-            data.columns = [col.lower() for col in data.columns] # Veri çekilirken standartlaştır
+            data.columns = [col.lower() for col in data.columns]
         return data, info, news
     except Exception: return None, None, None
 
 @st.cache_data
 def calculate_technicals(df):
     if df is not None and not df.empty and len(df) > 50:
-        # Sütun adlarının zaten küçük harf olduğu varsayılır (get_stock_data'da yapıldı)
+        df.columns = [col.lower() for col in df.columns]
         df.ta.rsi(close=df['close'], append=True)
         df.ta.macd(close=df['close'], append=True)
         df.ta.sma(close=df['close'], length=50, append=True)
@@ -148,7 +147,7 @@ def calculate_technicals(df):
         df.dropna(inplace=True)
     return df
 
-def get_option_suggestion(ticker, current_price, stock_target_price):
+def get_option_suggestion(ticker, current_price):
     try:
         stock = yf.Ticker(ticker)
         expirations = stock.options
@@ -181,14 +180,10 @@ def get_option_suggestion(ticker, current_price, stock_target_price):
         best_option = affordable_candidates.sort_values(by='ask').iloc[0]
         buy_price = best_option['ask']
         if buy_price > 0:
-            intrinsic_value_at_target = max(0, stock_target_price - best_option['strike'])
-            sell_target = buy_price + intrinsic_value_at_target
-            
             return {
                 "expiry": target_expiry, 
                 "strike": best_option['strike'], 
                 "buy_target": buy_price,
-                "sell_target": sell_target,
                 "delta": best_option.get('delta', 0),
                 "theta": best_option.get('theta', 0),
                 "gamma": best_option.get('gamma', 0)
@@ -313,8 +308,6 @@ with tabs[0]:
                         st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
                         st.text(f"{t('option_expiry')}: {option['expiry']}")
                         st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
-                        sell_profit_pct = ((option['sell_target']-option['buy_target'])/option['buy_target'])*100 if option['buy_target'] > 0 else 0
-                        st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
                     else: st.info(t('option_none'))
 
     elif 'scan_results' in st.session_state and not st.session_state.scan_results:
@@ -374,8 +367,6 @@ with tabs[1]:
                             st.metric(label=f"{t('option_contract')} ({t('option_call')})", value=f"${option['strike']:.2f}")
                             st.text(f"{t('option_expiry')}: {option['expiry']}")
                             st.metric(label=t('option_buy_target'), value=f"${option['buy_target']:.2f}")
-                            sell_profit_pct = ((option['sell_target'] - option['buy_target']) / option['buy_target']) * 100 if option['buy_target'] > 0 else 0
-                            st.metric(label=t('option_sell_target'), value=f"${option['sell_target']:.2f}", delta=f"+{sell_profit_pct:.2f}%")
                         else: st.info(t('option_none'))
 
                     with chart_col:
