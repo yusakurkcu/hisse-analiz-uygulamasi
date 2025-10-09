@@ -319,7 +319,10 @@ if ticker_input:
                 st.metric("Ortalama Haber Duyarlılığı", sentiment_text)
                 with st.expander("Son Haber Başlıkları"):
                     for n in news_with_sentiment[:5]:
-                        st.markdown(f"- [{n['title']}]({n['link']}) (Duygu: {n['sentiment']:.2f})")
+                        title = n.get('title', 'Başlık Bulunamadı')
+                        link = n.get('link', '#')
+                        sentiment = n.get('sentiment', 0.0)
+                        st.markdown(f"- [{title}]({link}) (Duygu: {sentiment:.2f})")
             else:
                 st.write("Haber bulunamadı.")
             
@@ -364,6 +367,7 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
 
 
