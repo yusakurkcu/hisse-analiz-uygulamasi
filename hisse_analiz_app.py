@@ -3,120 +3,188 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 from py_vollib.black_scholes.greeks.analytical import delta, gamma, theta, vega
+from py_vollib.black_scholes import black_scholes as bs
 
-# -----------------------------------------------------------------------------
-# Sayfa Yapılandırması
-# -----------------------------------------------------------------------------
+# --- Streamlit Sayfa Yapılandırması ---
 st.set_page_config(
-    page_title="NASDAQ Hisse Senedi Analiz Aracı",
+    page_title="Hisse Senedi Analiz Aracı",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# -----------------------------------------------------------------------------
-# Veri Çekme ve Önbellekleme Fonksiyonları
-# -----------------------------------------------------------------------------
+# --- CSS Stil Tanımlamaları ---
+st.markdown("""
+<style>
+    .stMetric {
+        border-radius: 10px;
+        padding: 15px;
+        background-color: #262730;
+        border: 1px solid #262730;
+    }
+    .stMetric .st-ae {
+        font-size: 1.1em;
+        font-weight: bold;
+        color: #fafafa;
+    }
+    .stMetric .st-af {
+        font-size: 1.5em;
+        font-weight: bold;
+    }
+    /* Risk seviyeleri için renkler */
+    .risk-low { color: #28a745; }
+    .risk-medium { color: #ffc107; }
+    .risk-high { color: #dc3545; }
+</style>
+""", unsafe_allow_html=True)
 
-# Veri çekme işlemlerini hızlandırmak için önbelleğe alma (caching) kullanılır.
-@st.cache_data(ttl=300) # 5 dakika boyunca önbellekte tut
-def get_stock_data(ticker, period="1y"):
-    """Belirtilen hisse senedi için geçmiş verileri çeker."""
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period)
-    if hist.empty:
+
+# --- ÖNBELLEKLEME FONKSİYONLARI ---
+@st.cache_data(ttl=300) # 5 dakika önbellekle
+def get_stock_data(ticker):
+    """Belirtilen hisse için geçmiş verileri çeker."""
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y") # Son 1 yıllık veri
+        if hist.empty:
+            return None
+        return hist
+    except Exception as e:
+        st.error(f"Veri çekilirken bir hata oluştu: {e}")
         return None
-    return hist
 
-@st.cache_data(ttl=3600) # 1 saat boyunca önbellekte tut
+@st.cache_data(ttl=300)
 def get_stock_info(ticker):
-    """Hisse senedi hakkında genel bilgileri ve takvimi çeker."""
-    stock = yf.Ticker(ticker)
-    return stock.info, stock.calendar
-
-@st.cache_data(ttl=86400) # Günde bir kez çek
-def get_risk_free_rate():
-    """Risksiz faiz oranını (ABD 10 Yıllık Hazine Tahvili) çeker."""
+    """Hisse senedi hakkında genel bilgileri çeker."""
     try:
-        tnx = yf.Ticker("^TNX")
-        hist = tnx.history(period="5d")
-        # Son kapanış değerini alıp 100'e bölerek ondalık formata çevir
-        return hist['Close'].iloc[-1] / 100
-    except:
-        # Hata olursa varsayılan bir değer döndür
-        return 0.04 
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        calendar = stock.calendar
+        return info, calendar
+    except Exception:
+        return None, None
 
-@st.cache_data(ttl=300) # 5 dakika boyunca önbellekte tut
+@st.cache_data(ttl=300)
 def get_option_chain(ticker):
-    """Hisse senedinin opsiyon zincirini çeker."""
-    stock = yf.Ticker(ticker)
+    """Hisse senedi için opsiyon zincirini çeker."""
     try:
+        stock = yf.Ticker(ticker)
         exp_dates = stock.options
         if not exp_dates:
             return None, None, None
         
-        # Analiz için en az 25 gün sonrası ilk vadeyi seç
-        valid_dates = [d for d in exp_dates if (datetime.strptime(d, '%Y-%m-%d') - datetime.now()).days > 25]
+        # En yakın ve en az 30 gün sonrası vade tarihini bul
+        today = datetime.now().date()
+        valid_dates = [d for d in exp_dates if (datetime.strptime(d, '%Y-%m-%d').date() - today).days >= 30]
         if not valid_dates:
-            return None, None, None
-            
-        options = stock.option_chain(valid_dates[0])
-        # Serileştirilebilir DataFrame'leri ve tarihi döndür
-        return options.calls, options.puts, valid_dates[0]
+             # Eğer 30 gün sonrası yoksa en yakın vadeyi al
+            exp_date = exp_dates[0]
+        else:
+            exp_date = valid_dates[0]
+
+        options = stock.option_chain(exp_date)
+        return options.calls, options.puts, exp_date
     except Exception:
         return None, None, None
 
-# -----------------------------------------------------------------------------
-# Analiz Fonksiyonları
-# -----------------------------------------------------------------------------
+@st.cache_data(ttl=3600) # 1 saat önbellekle
+def get_risk_free_rate():
+    """Risksiz faiz oranını (ABD 10 Yıllık Hazine) çeker."""
+    try:
+        tnx = yf.Ticker("^TNX")
+        hist = tnx.history(period="5d")
+        if not hist.empty:
+            return hist['Close'].iloc[-1] / 100
+    except Exception:
+        pass
+    return 0.04 # Fallback değeri
 
-def calculate_technical_indicators(df):
-    """Teknik göstergeleri hesaplar: MA, RSI, MACD."""
+# --- ANALİZ FONKSİYONLARI ---
+def add_technical_indicators(df):
+    """DataFrame'e teknik göstergeleri ekler."""
     df['MA20'] = df['Close'].rolling(window=20).mean()
     df['MA50'] = df['Close'].rolling(window=50).mean()
     df['MA200'] = df['Close'].rolling(window=200).mean()
     
-    # RSI Hesaplaması
-    delta_rsi = df['Close'].diff()
-    gain = (delta_rsi.where(delta_rsi > 0, 0)).rolling(window=14).mean()
-    loss = (-delta_rsi.where(delta_rsi < 0, 0)).rolling(window=14).mean()
+    # RSI
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
-
-    # MACD Hesaplaması
-    exp1 = df['Close'].ewm(span=12, adjust=False).mean()
-    exp2 = df['Close'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = exp1 - exp2
+    
+    # MACD
+    df['EMA12'] = df['Close'].ewm(span=12, adjust=False).mean()
+    df['EMA26'] = df['Close'].ewm(span=26, adjust=False).mean()
+    df['MACD'] = df['EMA12'] - df['EMA26']
     df['Signal_Line'] = df['MACD'].ewm(span=9, adjust=False).mean()
     
     return df
 
 def find_support_resistance(df):
-    """Basit pivot noktalarına dayalı destek ve direnç seviyelerini bulur."""
+    """Daha gelişmiş pivot noktalarına dayalı destek ve direnç seviyelerini bulur."""
     support_levels = []
     resistance_levels = []
     
-    # Son 6 aydaki veriyi kullan
-    recent_df = df.tail(180)
+    recent_df = df.tail(180) # Son 6 ay
     
+    if len(recent_df) < 11:
+        return None, None
+
     for i in range(5, len(recent_df) - 5):
-        # Destek (Yerel Minimum)
-        if recent_df['Low'][i] < min(recent_df['Low'][i-5:i+6]):
+        if recent_df['Low'][i] <= min(recent_df['Low'][i-5:i+6]):
             support_levels.append(recent_df['Low'][i])
-        # Direnç (Yerel Maksimum)
-        if recent_df['High'][i] > max(recent_df['High'][i-5:i+6]):
+        if recent_df['High'][i] >= max(recent_df['High'][i-5:i+6]):
             resistance_levels.append(recent_df['High'][i])
             
-    # Son fiyata en yakın 2 seviyeyi al
     current_price = recent_df['Close'].iloc[-1]
     
-    closest_support = min([s for s in support_levels if s < current_price], key=lambda x: abs(x-current_price)) if any(s < current_price for s in support_levels) else None
-    closest_resistance = min([r for r in resistance_levels if r > current_price], key=lambda x: abs(x-current_price)) if any(r > current_price for r in resistance_levels) else None
+    valid_supports = list(set([s for s in support_levels if s < current_price]))
+    valid_resistances = list(set([r for r in resistance_levels if r > current_price]))
     
+    closest_support = None
+    closest_resistance = None
+
+    if valid_supports:
+        closest_support = max(valid_supports)
+    else:
+        low_of_period = recent_df['Low'].min()
+        if low_of_period < current_price:
+            closest_support = low_of_period
+
+    if valid_resistances:
+        closest_resistance = min(valid_resistances)
+    else:
+        high_of_period = recent_df['High'].max()
+        if high_of_period > current_price:
+            closest_resistance = high_of_period
+        
     return closest_support, closest_resistance
 
+def calculate_greeks(df, stock_price, risk_free_rate, exp_date_str, option_type='c'):
+    """Opsiyonlar için Yunan harflerini Black-Scholes modeli ile hesaplar."""
+    if df is None or df.empty:
+        return df
+
+    today = datetime.now().date()
+    exp_date = datetime.strptime(exp_date_str, '%Y-%m-%d').date()
+    time_to_expiry = (exp_date - today).days / 365.0
+
+    if time_to_expiry <= 0: return df # Vadesi geçmişse hesaplama yapma
+
+    required_cols = ['strike', 'impliedVolatility']
+    if not all(col in df.columns for col in required_cols):
+        return df
+
+    df['delta'] = df.apply(lambda row: delta(option_type, stock_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
+    df['gamma'] = df.apply(lambda row: gamma(option_type, stock_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
+    df['theta'] = df.apply(lambda row: theta(option_type, stock_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
+    df['vega'] = df.apply(lambda row: vega(option_type, stock_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
+    
+    return df
 
 def analyze_buying_opportunity(df, info):
     """Kullanıcının belirttiği kriterlere göre alım fırsatını analiz eder."""
@@ -126,360 +194,327 @@ def analyze_buying_opportunity(df, info):
     last_row = df.iloc[-1]
     prev_row = df.iloc[-2]
     
-    # 1. Teknik Analiz Sinyalleri
-    if last_row['RSI'] < 35 and last_row['RSI'] > prev_row['RSI']:
-        signals.append("✅ RSI aşırı satım bölgesinden (<30) yukarı dönüyor.")
+    # 1. RSI
+    if last_row['RSI'] > 30 and prev_row['RSI'] <= 30:
+        signals.append("✅ RSI aşırı satım bölgesinden yukarı döndü.")
         score += 2
-    elif last_row['RSI'] < 50:
-        signals.append("⚠️ RSI 50'nin altında, zayıf momentum.")
-    else:
-        signals.append("👍 RSI 50'nin üzerinde, pozitif momentum.")
+    elif last_row['RSI'] < 30:
+        signals.append("⚠️ RSI aşırı satım bölgesinde, dönüş bekleniyor.")
         score += 1
-        
-    if last_row['MA20'] > last_row['MA50'] and prev_row['MA20'] < prev_row['MA50']:
-        signals.append("✅ Golden Cross (20 Günlük > 50 Günlük) sinyali oluştu.")
+    else:
+        signals.append("➖ RSI nötr veya aşırı alım bölgesinde.")
+
+    # 2. Golden Cross (MA20 vs MA50)
+    if last_row['MA20'] > last_row['MA50'] and prev_row['MA20'] <= prev_row['MA50']:
+        signals.append("✅ Golden Cross sinyali oluştu (MA20, MA50'yi yukarı kesti).")
         score += 2
     elif last_row['MA20'] > last_row['MA50']:
-        signals.append("👍 Kısa vadeli ortalama (20) uzun vadelinin (50) üzerinde.")
+        signals.append("➖ Kısa vadeli ortalama, uzun vadelinin üzerinde (Pozitif).")
         score += 1
-        
-    if last_row['Volume'] > df['Volume'].rolling(window=20).mean().iloc[-1] * 1.5:
-        signals.append("✅ Son işlem gününde hacim ortalamanın üzerinde, ilgi artıyor.")
-        score += 1
-        
-    # 2. Temel Analiz Sinyalleri
-    pe_ratio = info.get('trailingPE')
-    if pe_ratio is not None:
-        if pe_ratio < 20:
-            signals.append(f"👍 F/K Oranı ({pe_ratio:.2f}) makul seviyede.")
-            score += 1
-        elif pe_ratio < 40:
-            signals.append(f"⚠️ F/K Oranı ({pe_ratio:.2f}) sektör ortalamalarına göre değerlendirilmeli.")
-        else:
-            signals.append(f"❌ F/K Oranı ({pe_ratio:.2f}) yüksek, primli olabilir.")
-            score -= 1
-        
-    debt_to_equity = info.get('debtToEquity')
-    if debt_to_equity is not None:
-        if debt_to_equity < 50: # % olarak
-            signals.append(f"👍 Düşük borçluluk oranı (Borç/Özkaynak: {debt_to_equity/100:.2%}).")
-            score += 1
-        elif debt_to_equity > 150:
-            signals.append(f"❌ Yüksek borçluluk oranı (Borç/Özkaynak: {debt_to_equity/100:.2%}).")
-            score -=1
+    else:
+        signals.append("➖ Death Cross aktif (MA20, MA50'nin altında).")
 
+    # 3. Hacim Artışı
+    if last_row['Volume'] > df['Volume'].rolling(window=20).mean().iloc[-1] and last_row['Close'] > prev_row['Close']:
+        signals.append("✅ Yükseliş, ortalamanın üzerinde bir hacimle destekleniyor.")
+        score += 1
+    else:
+        signals.append("➖ Hacim, yükselişi belirgin şekilde desteklemiyor.")
+
+    # 4. F/K Oranı
+    pe_ratio = info.get('trailingPE')
+    if pe_ratio and pe_ratio < 20:
+        signals.append(f"✅ F/K oranı ({pe_ratio:.2f}) makul seviyede, hisse ucuz olabilir.")
+        score += 1
+    elif pe_ratio:
+        signals.append(f"⚠️ F/K oranı ({pe_ratio:.2f}) yüksek, beklentiler fiyatlanmış olabilir.")
+    else:
+         signals.append("➖ F/K oranı verisi bulunamadı.")
+
+    # 5. Borçluluk
+    d_to_e = info.get('debtToEquity')
+    if d_to_e is not None and d_to_e < 100: # %100'den az ise iyi kabul edelim
+        signals.append(f"✅ Borç/Özkaynak oranı ({d_to_e:.2f}) sağlıklı seviyede.")
+        score += 1
+    elif d_to_e is not None:
+        signals.append(f"⚠️ Borç/Özkaynak oranı ({d_to_e:.2f}) yüksek, risk unsuru olabilir.")
+    else:
+        signals.append("➖ Borçluluk verisi bulunamadı.")
+    
     # Sonuç
     if score >= 5:
-        result = ("GÜÇLÜ ALIM FIRSATI", "success")
+        return ("Güçlü Alım Fırsatı", "success", signals)
     elif score >= 3:
-        result = ("ALIM FIRSATI OLABİLİR", "success")
-    elif score >= 1:
-        result = ("NÖTR / İZLEMEDE", "info")
+        return ("Potansiyel Alım Fırsatı", "success", signals)
     else:
-        result = ("RİSKLİ / UZAK DUR", "warning")
-        
-    return result, signals
+        return ("Alım İçin Henüz Erken", "warning", signals)
 
-
-def calculate_greeks_for_chain(df, current_price, exp_date, risk_free_rate):
-    """Opsiyon zinciri için Yunan harflerini hesaplar."""
-    if df is None or df.empty:
-        return df
-
-    # Vadeye kalan süreyi yıl cinsinden hesapla
-    time_to_expiry = (datetime.strptime(exp_date, '%Y-%m-%d') - datetime.now()).days / 365.25
-    if time_to_expiry <= 0: time_to_expiry = 0.0001 # Sıfır veya negatif olmasını engelle
-
-    # Yunan harflerini hesapla
-    df['delta'] = df.apply(lambda row: delta('c', current_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
-    df['gamma'] = df.apply(lambda row: gamma('c', current_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
-    df['theta'] = df.apply(lambda row: theta('c', current_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
-    df['vega'] = df.apply(lambda row: vega('c', current_price, row['strike'], time_to_expiry, risk_free_rate, row['impliedVolatility']), axis=1)
-    
-    return df
-
-
-def analyze_option_suitability(df, calls_df, info, risk_free_rate, exp_date):
-    """Call opsiyonu alımına uygunluğu analiz eder."""
-    if calls_df is None or calls_df.empty:
-        return ("Opsiyon verisi bulunamadı.", "warning"), [], "", None
-        
+def analyze_option_suitability(df_hist, df_options, info, risk_free_rate, exp_date_str, option_type='call'):
+    """Call veya Put opsiyonu alımına uygunluğu analiz eder."""
     signals = []
-    score = 0
-    last_row = df.iloc[-1]
+    suggestion = "Spesifik kontrat önerisi yapılamıyor."
+    
+    if df_options is None or df_options.empty:
+        return "Opsiyon verisi bulunamadı.", signals, suggestion, None
+
+    last_row = df_hist.iloc[-1]
     current_price = last_row['Close']
 
-    # --- Yunan Harflerini Hesapla ---
-    try:
-        calls_df = calculate_greeks_for_chain(calls_df, current_price, exp_date, risk_free_rate)
-    except Exception as e:
-        st.warning(f"Yunan harfleri hesaplanırken bir sorun oluştu: {e}")
+    # Yunan harflerini hesapla
+    df_options = calculate_greeks(df_options, current_price, risk_free_rate, exp_date_str, 'c' if option_type == 'call' else 'p')
 
-    # 1. Trend ve Momentum
-    if last_row['MA20'] > last_row['MA50']:
-        signals.append("✅ Yükseliş Trendi (20MA > 50MA).")
-        score += 2
-    else:
-        signals.append("❌ Düşüş Trendi (20MA < 50MA), Call için uygun değil.")
-        return ("Call Alımı İçin Riskli", "error"), signals, "", None
+    # Genel Trend ve Momentum Analizi
+    is_bullish = last_row['MA20'] > last_row['MA50'] and last_row['RSI'] > 50 and last_row['MACD'] > last_row['Signal_Line']
+    is_bearish = last_row['MA20'] < last_row['MA50'] and last_row['RSI'] < 50 and last_row['MACD'] < last_row['Signal_Line']
 
-    if last_row['RSI'] > 55:
-        signals.append(f"✅ Güçlü Momentum (RSI: {last_row['RSI']:.2f}).")
-        score += 1
-    else:
-        signals.append(f"⚠️ Zayıf Momentum (RSI: {last_row['RSI']:.2f}).")
-    
-    if last_row['MACD'] > last_row['Signal_Line']:
-        signals.append("✅ MACD pozitif sinyal veriyor.")
-        score += 1
-        
-    # 2. Opsiyon Zinciri Analizi
-    calls = calls_df
-    
-    # Fiyata en yakın (At-the-money) kontratları bul
-    atm_calls = calls.iloc[(calls['strike'] - current_price).abs().argsort()[:5]]
-    
-    avg_oi = atm_calls['openInterest'].mean()
-    avg_volume = atm_calls['volume'].mean()
-    
-    if avg_oi > 100 and avg_volume > 50:
-        signals.append(f"✅ Opsiyonlar likit (Ort. Açık Pozisyon: {avg_oi:.0f}, Ort. Hacim: {avg_volume:.0f}).")
-        score += 1
-    else:
-        signals.append("❌ Opsiyonlar yeterince likit değil, spreadler geniş olabilir.")
-        score -= 2
-        
-    avg_iv = atm_calls['impliedVolatility'].mean()
-    if avg_iv < 0.6: # %60
-        signals.append(f"👍 Implied Volatility (IV) makul seviyede ({avg_iv:.2%}), primler şişkin değil.")
-        score += 1
-    else:
-        signals.append(f"⚠️ IV yüksek ({avg_iv:.2%}), primler pahalı olabilir.")
-
-    # Sonuç
-    if score >= 5:
-        result = ("CALL OPSİYONU İÇİN UYGUN", "success")
-    elif score >= 3:
-        result = ("Call Opsiyonu Değerlendirilebilir", "info")
-    else:
-        result = ("Call Alımı İçin Riskli", "warning")
-        
-    # Uygun kontrat önerisi
-    suggestion = ""
-    if result[1] in ["success", "info"] and 'delta' in calls.columns:
-        # Delta'sı 0.5 - 0.75 arasına en yakın ve en likit olanı seç
-        suitable_contracts = calls[(calls['delta'] >= 0.5) & (calls['delta'] <= 0.75)].sort_values(by='openInterest', ascending=False)
-        if not suitable_contracts.empty:
-            best_contract = suitable_contracts.iloc[0]
-            suggestion = (f"**Öneri:** {best_contract['strike']}$ kullanım fiyatlı (Strike) kontrat değerlendirilebilir. "
-                          f"(Delta: {best_contract['delta']:.2f}, IV: {best_contract['impliedVolatility']:.2%})")
+    if option_type == 'call':
+        if is_bullish:
+            signals.append("✅ Hisse, kısa ve orta vadeli yükseliş trendinde.")
         else:
-             suggestion = "**Bilgi:** İstenen Delta (0.5-0.75) aralığında likit bir kontrat bulunamadı."
-            
-    # Hata vermemesi için gösterilecek kolonları mevcut olanlar arasından seç
-    display_cols = ['strike', 'lastPrice', 'delta', 'gamma', 'theta', 'vega', 'impliedVolatility', 'volume', 'openInterest']
-    existing_cols_in_atm = [col for col in display_cols if col in atm_calls.columns]
+            signals.append("❌ Hisse, Call alımı için uygun bir yükseliş trendinde değil.")
+    else: # Put
+        if is_bearish:
+            signals.append("✅ Hisse, kısa ve orta vadeli düşüş trendinde.")
+        else:
+            signals.append("❌ Hisse, Put alımı için uygun bir düşüş trendinde değil.")
     
-    return result, signals, suggestion, atm_calls[existing_cols_in_atm] if not atm_calls.empty else None
-
-
-# -----------------------------------------------------------------------------
-# Grafik Çizim Fonksiyonu
-# -----------------------------------------------------------------------------
-
-def plot_stock_chart(df, ticker, support, resistance):
-    """Paylaşılan hisse senedi için bir grafik oluşturur."""
-    fig = go.Figure()
-
-    # Fiyat Mumu Grafiği
-    fig.add_trace(go.Candlestick(x=df.index,
-                               open=df['Open'],
-                               high=df['High'],
-                               low=df['Low'],
-                               close=df['Close'],
-                               name='Fiyat'))
-
-    # Hareketli Ortalamalar
-    fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], mode='lines', name='20 Günlük MA', line=dict(color='blue', width=1.5)))
-    fig.add_trace(go.Scatter(x=df.index, y=df['MA50'], mode='lines', name='50 Günlük MA', line=dict(color='orange', width=1.5)))
-    fig.add_trace(go.Scatter(x=df.index, y=df['MA200'], mode='lines', name='200 Günlük MA', line=dict(color='red', width=2)))
-
-    # Destek ve Direnç Seviyeleri
-    if support:
-        fig.add_hline(y=support, line_dash="dash", line_color="green", annotation_text=f"Destek: {support:.2f}", annotation_position="bottom right")
-    if resistance:
-        fig.add_hline(y=resistance, line_dash="dash", line_color="red", annotation_text=f"Direnç: {resistance:.2f}", annotation_position="top right")
-
-    fig.update_layout(
-        title=f'{ticker} Fiyat Grafiği ve Teknik Göstergeler',
-        yaxis_title='Fiyat (USD)',
-        xaxis_title='Tarih',
-        xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        height=500
-    )
-    return fig
-
-# -----------------------------------------------------------------------------
-# Streamlit Arayüzü
-# -----------------------------------------------------------------------------
-
-st.title("📈 NASDAQ Hisse Senedi Analiz Aracı")
-st.markdown("""
-Bu araç, NASDAQ'da işlem gören hisse senetleri için teknik, temel ve opsiyon analizleri sunar. 
-Hisse senedi sembolünü girin (örn: `AAPL`, `TSLA`, `NVDA`) ve 'Analiz Et' butonuna tıklayın.
-""")
-st.info("**Not:** Bu uygulama bir yatırım tavsiyesi değildir. Yalnızca eğitim ve bilgilendirme amaçlıdır. Finansal kararlarınızı vermeden önce profesyonel bir danışmana başvurun.", icon="ℹ️")
-
-
-col1, col2 = st.columns([1, 4])
-with col1:
-    ticker_input = st.text_input("Hisse Senedi Sembolü:", "NVDA").upper()
-with col2:
-    st.write("") # Boşluk için
-    st.write("")
-    analyze_button = st.button("Analiz Et", type="primary", use_container_width=True)
-
-
-if analyze_button:
-    if not ticker_input:
-        st.warning("Lütfen bir hisse senedi sembolü girin.")
+    # Opsiyon Zinciri Analizi
+    df_options['liquidity_score'] = df_options['openInterest'].fillna(0) + df_options['volume'].fillna(0)
+    if df_options['liquidity_score'].sum() > 1000:
+        signals.append("✅ Opsiyon zincirinde yeterli likidite mevcut.")
     else:
-        with st.spinner(f"{ticker_input} verileri çekiliyor ve analiz ediliyor... Lütfen bekleyin."):
-            try:
-                hist_data = get_stock_data(ticker_input)
+        signals.append("⚠️ Opsiyon zincirinde likidite düşük, alım/satım zor olabilir.")
+
+    # Sonuç ve Kontrat Önerisi
+    analysis_result = "N/A"
+    
+    # Fiyata en yakın (At-the-Money) kontratları bul
+    if option_type == 'call':
+        atm_options = df_options[df_options['strike'] >= current_price].sort_values(by='strike').head(5)
+    else: # Put
+        atm_options = df_options[df_options['strike'] <= current_price].sort_values(by='strike', ascending=False).head(5)
+
+    if not atm_options.empty:
+        # En likit olanı seç
+        best_option = atm_options.sort_values(by='liquidity_score', ascending=False).iloc[0]
+        
+        strike = best_option['strike']
+        last_price = best_option['lastPrice']
+        oi = best_option['openInterest']
+
+        if option_type == 'call' and is_bullish:
+            analysis_result = f"Yükseliş beklentisiyle **Call Opsiyonu** düşünülebilir."
+            suggestion = f"**Öneri:** Vadesi **{exp_date_str}** olan, **${strike:.2f} kullanım fiyatlı** Call kontratı incelenebilir. (Son Fiyat: ${last_price:.2f}, Açık Pozisyon: {oi:.0f})"
+        elif option_type == 'put' and is_bearish:
+            analysis_result = f"Düşüş beklentisiyle **Put Opsiyonu** düşünülebilir."
+            suggestion = f"**Öneri:** Vadesi **{exp_date_str}** olan, **${strike:.2f} kullanım fiyatlı** Put kontratı incelenebilir. (Son Fiyat: ${last_price:.2f}, Açık Pozisyon: {oi:.0f})"
+        else:
+            analysis_result = f"Mevcut trend, **{option_type.capitalize()} Opsiyonu** alımını desteklemiyor."
+            suggestion = "Bu yönde bir işlem için daha uygun koşullar beklenmeli."
+
+    # Gösterilecek sütunları seç
+    display_cols = ['strike', 'lastPrice', 'bid', 'ask', 'volume', 'openInterest', 'impliedVolatility', 'delta', 'gamma', 'theta', 'vega']
+    existing_cols = [col for col in display_cols if col in df_options.columns]
+    
+    return analysis_result, signals, suggestion, df_options[existing_cols]
+
+
+# --- ANA UYGULAMA ARAYÜZÜ ---
+st.title("📈 Profesyonel Hisse Senedi Analiz Aracı")
+st.sidebar.header("Hisse Senedi Seçimi")
+ticker_input = st.sidebar.text_input("NASDAQ Hisse Senedi Sembolünü Girin (örn: AAPL, NVDA, TSLA)", "NVDA").upper()
+
+if ticker_input:
+    # Verileri Çek
+    hist_data = get_stock_data(ticker_input)
+    
+    if hist_data is None:
+        st.error("Hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+    else:
+        info, calendar = get_stock_info(ticker_input)
+        calls_df, puts_df, exp_date = get_option_chain(ticker_input)
+        risk_free_rate = get_risk_free_rate()
+        
+        # Analizleri Yap
+        hist_data = add_technical_indicators(hist_data)
+        support, resistance = find_support_resistance(hist_data)
+        buy_analysis = analyze_buying_opportunity(hist_data, info)
+        
+        # --- SONUÇLARI GÖSTER ---
+        st.header(f"{info.get('longName', ticker_input)} ({ticker_input}) Analizi")
+        
+        # Genel Bakış ve Ticaret Planı
+        col_main, col_plan = st.columns([2, 1.5])
+
+        with col_main:
+            col_price, col_market, col_risk = st.columns(3)
+            current_price = info.get('currentPrice', hist_data['Close'].iloc[-1])
+            prev_close = info.get('previousClose', hist_data['Close'].iloc[-2])
+            price_change = current_price - prev_close
+            percent_change = (price_change / prev_close) * 100
+            col_price.metric("Güncel Fiyat", f"${current_price:.2f}", f"{price_change:+.2f} ({percent_change:+.2f}%)")
+
+            market_cap = info.get('marketCap', 0)
+            col_market.metric("Piyasa Değeri", f"${market_cap / 1_000_000_000:.2f} Milyar")
+
+            beta = info.get('beta')
+            risk_level = "Orta"
+            risk_color = "risk-medium"
+            if beta:
+                if beta < 1.0:
+                    risk_level = "Düşük"
+                    risk_color = "risk-low"
+                elif beta > 1.5:
+                    risk_level = "Yüksek"
+                    risk_color = "risk-high"
+            col_risk.markdown(f"**Risk Seviyesi**<br><span class='{risk_color}' style='font-size: 1.5em; font-weight:bold;'>{risk_level}</span>", unsafe_allow_html=True)
+
+        with col_plan:
+            st.markdown("**Ticaret Planı Önerisi**")
+            entry = f"${current_price:.2f}"
+            stop = f"${support:.2f}" if support else "N/A"
+            target = f"${resistance:.2f}" if resistance else "N/A"
+            
+            rr_ratio = "N/A"
+            if support and resistance and (current_price - support) > 0:
+                potential_gain = resistance - current_price
+                potential_loss = current_price - support
+                ratio = potential_gain / potential_loss
+                rr_ratio = f"{ratio:.2f} : 1"
+
+            st.markdown(f"""
+            - **Giriş:** <span style='color: white;'>{entry}</span>
+            - **Zarar Durdur (Stop):** <span style='color: #dc3545;'>{stop}</span>
+            - **Kâr Al (Hedef):** <span style='color: #28a745;'>{target}</span>
+            - **Kazanç/Risk Oranı:** <span style='color: white;'>{rr_ratio}</span>
+            """, unsafe_allow_html=True)
+        
+        st.subheader("Genel Alım Fırsatı Değerlendirmesi", divider='rainbow')
+        st.markdown(f"**Sonuç:** <span style='color:{'#28a745' if buy_analysis[1]=='success' else '#ffc107'}; font-size: 1.2em;'>{buy_analysis[0]}</span>", unsafe_allow_html=True)
+        with st.expander("Detaylı Sinyalleri Gör"):
+            for signal in buy_analysis[2]:
+                st.markdown(f"- {signal}")
+
+        st.markdown("---")
+
+        # Detaylı Analiz Sekmeleri
+        tab1, tab2, tab3 = st.tabs(["📊 Teknik Analiz", "🏢 Temel Analiz", "⛓️ Opsiyon Analizi"])
+        
+        with tab1:
+            st.subheader("Fiyat Grafiği ve Teknik Göstergeler")
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+            
+            # Ana Fiyat Grafiği
+            fig.add_trace(go.Candlestick(x=hist_data.index,
+                                         open=hist_data['Open'], high=hist_data['High'],
+                                         low=hist_data['Low'], close=hist_data['Close'], name='Fiyat'), row=1, col=1)
+            
+            fig.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MA20'], mode='lines', name='MA20', line=dict(color='yellow', width=1)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=hist_data.index, y=hist_data['MA50'], mode='lines', name='MA50', line=dict(color='orange', width=1)), row=1, col=1)
+            
+            # Destek ve Direnç Çizgileri
+            if support:
+                fig.add_hline(y=support, line_dash="dash", line_color="green", annotation_text=f"Destek ${support:.2f}", row=1, col=1)
+            if resistance:
+                fig.add_hline(y=resistance, line_dash="dash", line_color="red", annotation_text=f"Direnç ${resistance:.2f}", row=1, col=1)
+            
+            # RSI Grafiği
+            fig.add_trace(go.Scatter(x=hist_data.index, y=hist_data['RSI'], mode='lines', name='RSI'), row=2, col=1)
+            fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+            fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+            
+            fig.update_layout(
+                title=f'{ticker_input} Fiyat Grafiği',
+                xaxis_rangeslider_visible=False,
+                height=600,
+                template='plotly_dark'
+            )
+            fig.update_yaxes(title_text="Fiyat ($)", row=1, col=1)
+            fig.update_yaxes(title_text="RSI", row=2, col=1)
+            
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab2:
+            st.subheader("Şirket Bilgileri ve Temel Veriler")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"**Sektör:** {info.get('sector', 'N/A')}")
+                st.markdown(f"**Endüstri:** {info.get('industry', 'N/A')}")
+                st.markdown(f"**Ülke:** {info.get('country', 'N/A')}")
+                st.markdown(f"**Website:** {info.get('website', 'N/A')}")
+                st.markdown("**İş Tanımı:**")
+                st.info(info.get('longBusinessSummary', 'N/A'))
+            
+            with col2:
+                st.markdown("**Finansal Metrikler:**")
+                pe = info.get('trailingPE')
+                st.write(f"**Fiyat/Kazanç (F/K):** {pe:.2f}" if pe else "N/A")
+                pb = info.get('priceToBook')
+                st.write(f"**Piyasa Değeri/Defter Değeri (PD/DD):** {pb:.2f}" if pb else "N/A")
+                ps = info.get('priceToSalesTrailing12Months')
+                st.write(f"**Fiyat/Satışlar:** {ps:.2f}" if ps else "N/A")
                 
-                if hist_data is None or hist_data.empty:
-                    st.error(f"'{ticker_input}' için veri bulunamadı. Lütfen sembolü kontrol edin.")
-                else:
-                    info, calendar = get_stock_info(ticker_input)
-                    calls_df, puts_df, exp_date = get_option_chain(ticker_input)
-                    risk_free_rate = get_risk_free_rate()
+                low = info.get('fiftyTwoWeekLow')
+                high = info.get('fiftyTwoWeekHigh')
+                st.write(f"**52 Haftalık Aralık:** ${low:.2f} - ${high:.2f}" if low and high else "N/A")
+                d_to_e = info.get('debtToEquity')
+                st.write(f"**Borç/Özkaynak:** {d_to_e/100:.2f}" if d_to_e else "N/A")
+
+                st.subheader("Yaklaşan Etkinlikler")
+                earnings_date_found = False
+                if calendar is not None:
+                    if isinstance(calendar, dict):
+                        if 'Earnings Date' in calendar and calendar['Earnings Date']:
+                            earnings_date = calendar['Earnings Date'][0]
+                            st.write(f"**Bilanço Açıklama Tarihi:** {earnings_date.strftime('%Y-%m-%d')}")
+                            earnings_date_found = True
+                    elif isinstance(calendar, pd.DataFrame):
+                        if 'Earnings Date' in calendar.columns and not calendar['Earnings Date'].dropna().empty:
+                            earnings_date = calendar['Earnings Date'].dropna().iloc[0]
+                            st.write(f"**Bilanço Açıklama Tarihi:** {earnings_date.strftime('%Y-%m-%d')}")
+                            earnings_date_found = True
+                
+                if not earnings_date_found:
+                    st.write("Yakın zamanda bir etkinlik bulunmuyor.")
                     
-                    # Analizler
-                    hist_data = calculate_technical_indicators(hist_data)
-                    support, resistance = find_support_resistance(hist_data)
-                    
-                    buy_analysis, buy_signals = analyze_buying_opportunity(hist_data, info)
-                    option_analysis, option_signals, option_suggestion, option_df = analyze_option_suitability(hist_data, calls_df, info, risk_free_rate, exp_date)
+        with tab3:
+            st.subheader("Opsiyon Zinciri Analizi")
+            
+            if exp_date:
+                st.info(f"Analiz, **{exp_date}** vadeli opsiyonlar için yapılmıştır.")
+                
+                # Call Opsiyon Analizi
+                st.markdown("#### Yükseliş Beklentisi (Call Opsiyonu)")
+                call_analysis, call_signals, call_suggestion, call_df_display = analyze_option_suitability(hist_data, calls_df, info, risk_free_rate, exp_date, 'call')
+                st.markdown(f"**Durum:** {call_analysis}")
+                for signal in call_signals:
+                    st.markdown(f"- {signal}")
+                st.success(call_suggestion)
+                
+                st.markdown("---")
 
-                    # --- SONUÇLARI GÖSTER ---
-                    st.header(f"{info.get('longName', ticker_input)} ({ticker_input}) Analizi")
-                    
-                    # Genel Bakış Metrikleri
-                    col_price, col_market, col_support, col_resistance = st.columns(4)
-                    
-                    with col_price:
-                        current_price = info.get('currentPrice', hist_data['Close'].iloc[-1])
-                        prev_close = info.get('previousClose', hist_data['Close'].iloc[-2])
-                        price_change = current_price - prev_close
-                        percent_change = (price_change / prev_close) * 100
-                        st.metric("Güncel Fiyat", f"${current_price:.2f}", f"{price_change:+.2f} ({percent_change:+.2f}%)")
-
-                    with col_market:
-                        market_cap = info.get('marketCap', 0)
-                        st.metric("Piyasa Değeri", f"${market_cap / 1_000_000_000:.2f} Milyar")
-
-                    with col_support:
-                        if support:
-                            st.metric("Destek / Stop Seviyesi", f"${support:.2f}")
-                        else:
-                            st.metric("Destek", "N/A")
-
-                    with col_resistance:
-                        if resistance:
-                            st.metric("Direnç / Hedef Fiyat", f"${resistance:.2f}")
-                        else:
-                            st.metric("Direnç", "N/A")
-
-                    st.subheader("Genel Alım Fırsatı Değerlendirmesi", divider='rainbow')
-                    st.markdown(f"**Sonuç:** <span style='color:{'green' if buy_analysis[1]=='success' else 'orange'}; font-size: 1.2em;'>{buy_analysis[0]}</span>", unsafe_allow_html=True)
-
-                    st.markdown("---")
-
-                    # Detaylı Analiz Sekmeleri
-                    tab1, tab2, tab3 = st.tabs(["📊 Teknik Analiz", "🏢 Temel Analiz", "⛓️ Opsiyon Analizi"])
-
-                    with tab1:
-                        st.plotly_chart(plot_stock_chart(hist_data, ticker_input, support, resistance), use_container_width=True)
-                        st.subheader("Teknik Sinyaller")
-                        for signal in buy_signals:
-                            if "✅" in signal or "👍" in signal:
-                                st.markdown(f"<p style='color:green;'>{signal}</p>", unsafe_allow_html=True)
-                            elif "⚠️" in signal:
-                                st.markdown(f"<p style='color:orange;'>{signal}</p>", unsafe_allow_html=True)
-                            else:
-                                st.write(signal)
-
-                    with tab2:
-                        st.subheader("Şirket Profili ve Temel Veriler")
-                        col_prof1, col_prof2 = st.columns(2)
-                        with col_prof1:
-                            st.write(f"**Sektör:** {info.get('sector', 'N/A')}")
-                            st.write(f"**Endüstri:** {info.get('industry', 'N/A')}")
-                            pe = info.get('trailingPE')
-                            st.write(f"**F/K Oranı:** {pe:.2f}" if pe else "N/A")
-                            div_yield = info.get('dividendYield')
-                            st.write(f"**Temettü Verimi:** {div_yield * 100:.2f}%" if div_yield else "N/A")
-                        with col_prof2:
-                            beta = info.get('beta')
-                            st.write(f"**Beta:** {beta:.2f}" if beta else "N/A")
-                            low = info.get('fiftyTwoWeekLow')
-                            high = info.get('fiftyTwoWeekHigh')
-                            st.write(f"**52 Haftalık Aralık:** ${low:.2f} - ${high:.2f}" if low and high else "N/A")
-                            d_to_e = info.get('debtToEquity')
-                            st.write(f"**Borç/Özkaynak:** {d_to_e:.2f}" if d_to_e else "N/A")
-
-                        st.subheader("Yaklaşan Etkinlikler")
-                        earnings_date_found = False
-                        if calendar is not None:
-                            # yfinance takvim için bir sözlük (dict) veya DataFrame döndürebilir, her iki durumu da ele alıyoruz.
-                            if isinstance(calendar, dict):
-                                # Sözlük ise, anahtarın varlığını ve listenin boş olmadığını kontrol et
-                                if 'Earnings Date' in calendar and calendar['Earnings Date']:
-                                    earnings_date = calendar['Earnings Date'][0]
-                                    st.write(f"**Bilanço Açıklama Tarihi:** {earnings_date.strftime('%Y-%m-%d')}")
-                                    earnings_date_found = True
-                            # DataFrame ise
-                            elif isinstance(calendar, pd.DataFrame):
-                                if 'Earnings Date' in calendar.columns and not calendar['Earnings Date'].dropna().empty:
-                                    earnings_date = calendar['Earnings Date'].dropna().iloc[0]
-                                    st.write(f"**Bilanço Açıklama Tarihi:** {earnings_date.strftime('%Y-%m-%d')}")
-                                    earnings_date_found = True
-                        
-                        if not earnings_date_found:
-                            st.write("Yakın zamanda bir etkinlik bulunmuyor.")
-                            
-                    with tab3:
-                        st.subheader("Call Opsiyonu Alım Uygunluğu")
-                        st.markdown(f"**Sonuç:** <span style='color:{'green' if option_analysis[1]=='success' else 'orange'}; font-size: 1.2em;'>{option_analysis[0]}</span>", unsafe_allow_html=True)
-                        if exp_date:
-                            st.write(f"_(Vade Tarihi: {exp_date} için analiz edilmiştir.)_")
-                        
-                        st.subheader("Opsiyon Sinyalleri")
-                        for signal in option_signals:
-                             if "✅" in signal or "👍" in signal:
-                                st.markdown(f"<p style='color:green;'>{signal}</p>", unsafe_allow_html=True)
-                             else:
-                                st.markdown(f"<p style='color:orange;'>{signal}</p>", unsafe_allow_html=True)
-
-                        if option_suggestion:
-                            st.success(option_suggestion)
-                        
-                        if option_df is not None:
-                            st.subheader("Fiyata Yakın Call Opsiyonları (Hesaplanan Yunan Harfleriyle)")
-                            st.dataframe(option_df.set_index('strike').style.format({
-                                'lastPrice': '{:.2f}',
-                                'delta': '{:.3f}',
-                                'gamma': '{:.3f}',
-                                'theta': '{:.3f}',
-                                'vega': '{:.3f}',
-                                'impliedVolatility': '{:.2%}',
-                            }))
-
-
-            except Exception as e:
-                st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
-
-
+                # Put Opsiyon Analizi
+                st.markdown("#### Düşüş Beklentisi (Put Opsiyonu)")
+                put_analysis, put_signals, put_suggestion, put_df_display = analyze_option_suitability(hist_data, puts_df, info, risk_free_rate, exp_date, 'put')
+                st.markdown(f"**Durum:** {put_analysis}")
+                for signal in put_signals:
+                    st.markdown(f"- {signal}")
+                st.warning(put_suggestion)
+                
+                st.markdown("---")
+                
+                # Opsiyon Zinciri DataFrame'leri
+                with st.expander("Detaylı Opsiyon Zincirini Görüntüle"):
+                    col_call, col_put = st.columns(2)
+                    with col_call:
+                        st.markdown("##### Call Opsiyonları")
+                        st.dataframe(call_df_display.style.format(precision=2))
+                    with col_put:
+                        st.markdown("##### Put Opsiyonları")
+                        st.dataframe(put_df_display.style.format(precision=2))
+            else:
+                st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
+else:
+    st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
 
