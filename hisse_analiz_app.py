@@ -260,7 +260,8 @@ if ticker_input:
             if beta:
                 if beta < 1.0: risk_level, risk_color = "Düşük", "risk-low"
                 elif beta > 1.5: risk_level, risk_color = "Yüksek", "risk-high"
-            col_risk.markdown(f"**Risk Seviyesi**<br><span class='{risk_color}' style='font-size: 1.5em; font-weight:bold;'>{risk_level}</span>", unsafe_allow_html=True, help=f"Beta: {beta:.2f if beta else 'N/A'}\n\nBeta, hissenin piyasanın geneline göre ne kadar dalgalı olduğunu gösterir.")
+            beta_text = f"{beta:.2f}" if beta is not None else "N/A"
+            col_risk.markdown(f"**Risk Seviyesi**<br><span class='{risk_color}' style='font-size: 1.5em; font-weight:bold;'>{risk_level}</span>", unsafe_allow_html=True, help=f"Beta: {beta_text}\n\nBeta, hissenin piyasanın geneline göre ne kadar dalgalı olduğunu gösterir.")
         
         with col_plan:
             st.markdown("**Ticaret Planı Önerisi**")
@@ -365,4 +366,5 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
