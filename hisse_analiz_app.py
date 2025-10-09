@@ -192,7 +192,7 @@ def analyze_option_suitability(df_hist, df_options, info, risk_free_rate, exp_da
         strike, last_price, oi = best_option['strike'], best_option['lastPrice'], best_option['openInterest']
         if (option_type == 'call' and is_bullish) or (option_type == 'put' and is_bearish):
             analysis_result = f"Beklentiyle **{option_type.capitalize()} Opsiyonu** düşünülebilir."
-            suggestion = f"**Öneri:** Vadesi **{exp_date_str}** olan, **${strike:.2f} kullanım fiyatlı** {option_type.capitalize()} kontratı incelenebilir. (Fiyat: ${last_price:.2f}, Açık Pozisyon: {oi:.0f})"
+            suggestion = f"**Öneri:** Vadesi **{exp_date_str}** olan, **${strike:.2f} kullanım fiyatlı** bir **{option_type.capitalize()}** kontratı incelenebilir. (Fiyat: ${last_price:.2f}, Açık Pozisyon: {oi:.0f})"
             if option_type == 'call' and len(atm_options) > 1:
                 sell_option = atm_options.iloc[-1]
                 spread_suggestion = f"**Daha Düşük Riskli Strateji (Bull Call Spread):** **${strike:.2f}** call alıp, aynı anda **${sell_option['strike']:.2f}** call satarak maliyeti düşürebilir ve riskinizi sınırlayabilirsiniz."
@@ -318,11 +318,16 @@ if ticker_input:
                 elif avg_sentiment < -0.1: sentiment_text = "Negatif"
                 st.metric("Ortalama Haber Duyarlılığı", sentiment_text)
                 with st.expander("Son Haber Başlıkları"):
-                    for n in news_with_sentiment[:5]:
-                        title = n.get('title', 'Başlık Bulunamadı')
-                        link = n.get('link', '#')
-                        sentiment = n.get('sentiment', 0.0)
-                        st.markdown(f"- [{title}]({link}) (Duygu: {sentiment:.2f})")
+                    # Sadece başlığı olan haberleri filtrele
+                    valid_news = [n for n in news_with_sentiment if n.get('title')]
+                    if valid_news:
+                        for n in valid_news[:5]:
+                            title = n.get('title', 'Başlık Bulunamadı')
+                            link = n.get('link', '#')
+                            sentiment = n.get('sentiment', 0.0)
+                            st.markdown(f"- [{title}]({link}) (Duygu: {sentiment:.2f})")
+                    else:
+                        st.write("Başlıklı haber bulunamadı.")
             else:
                 st.write("Haber bulunamadı.")
             
@@ -386,6 +391,7 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
 
 
