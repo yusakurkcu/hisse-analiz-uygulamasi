@@ -19,6 +19,12 @@ except locale.Error:
         # Ayarlanamazsa, sistem varsayılanını kullanır (genellikle İngilizce)
         pass
 
+# yfinance API çağrılarının güvenilirliğini artırmak için bir oturum (session) oluştur
+session = requests.Session()
+session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+})
+
 # ==================================================================================================
 # TEMEL AYARLAR VE STİL YAPILANDIRMASI
 # ==================================================================================================
@@ -165,7 +171,11 @@ def standardize_columns(df):
 def get_stock_info(ticker):
     """Bir hisse senedinin temel bilgilerini ve logosunu çeker."""
     try:
-        stock = yf.Ticker(ticker)
+        stock = yf.Ticker(ticker, session=session)
+        # .info bazen güvenilir olmayabilir, bu yüzden önce history ile sembolün geçerliliğini kontrol et
+        if stock.history(period="1d").empty:
+            return None, ""
+            
         info = stock.info
         logo_url = info.get('logo_url', '')
         # Logo URL'si yoksa veya boşsa, favicon kullanmayı dene
@@ -181,7 +191,7 @@ def get_stock_info(ticker):
 def get_stock_data(ticker, period="1y"):
     """Belirtilen periyotta hisse senedi verilerini çeker ve standartlaştırır."""
     try:
-        stock = yf.Ticker(ticker)
+        stock = yf.Ticker(ticker, session=session)
         df = stock.history(period=period)
         if df.empty:
             return None
@@ -939,6 +949,7 @@ with tab2:
                     st.info(f"Bu Alım (Call) opsiyonu; 30-45 gün arası vadesi, yüksek likiditesi, dar alım-satım makası ve hisse fiyatına oranla makul maliyeti nedeniyle seçilmiştir. Bu bir yatırım tavsiyesi değildir.")
                 else:
                     st.warning("Bu hisse için belirtilen kriterlere (30-45 gün vade, yeterli likidite, düşük maliyet) uygun bir opsiyon kontratı bulunamadı.")
+
 
 
 
