@@ -26,17 +26,19 @@ def get_stock_data(ticker, period="1y"):
     stock = yf.Ticker(ticker)
     hist = stock.history(period=period)
     if hist.empty:
-        return None, None
-    return stock, hist
+        return None
+    return hist
 
 @st.cache_data(ttl=3600) # 1 saat boyunca önbellekte tut
-def get_stock_info(stock):
+def get_stock_info(ticker):
     """Hisse senedi hakkında genel bilgileri ve takvimi çeker."""
+    stock = yf.Ticker(ticker)
     return stock.info, stock.calendar
 
 @st.cache_data(ttl=300) # 5 dakika boyunca önbellekte tut
-def get_option_chain(stock):
+def get_option_chain(ticker):
     """Hisse senedinin opsiyon zincirini çeker."""
+    stock = yf.Ticker(ticker)
     try:
         exp_dates = stock.options
         if not exp_dates:
@@ -299,13 +301,13 @@ if analyze_button:
     else:
         with st.spinner(f"{ticker_input} verileri çekiliyor ve analiz ediliyor... Lütfen bekleyin."):
             try:
-                stock, hist_data = get_stock_data(ticker_input)
+                hist_data = get_stock_data(ticker_input)
                 
-                if stock is None:
+                if hist_data is None or hist_data.empty:
                     st.error(f"'{ticker_input}' için veri bulunamadı. Lütfen sembolü kontrol edin.")
                 else:
-                    info, calendar = get_stock_info(stock)
-                    options, exp_date = get_option_chain(stock)
+                    info, calendar = get_stock_info(ticker_input)
+                    options, exp_date = get_option_chain(ticker_input)
                     
                     # Analizler
                     hist_data = calculate_technical_indicators(hist_data)
@@ -392,3 +394,4 @@ if analyze_button:
 
             except Exception as e:
                 st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+
