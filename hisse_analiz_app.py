@@ -366,23 +366,34 @@ if analyze_button:
                     # --- SONUÇLARI GÖSTER ---
                     st.header(f"{info.get('longName', ticker_input)} ({ticker_input}) Analizi")
                     
-                    # Genel Bakış
-                    price_info, summary, analysis_col = st.columns([1,1,2])
+                    # Genel Bakış Metrikleri
+                    col_price, col_market, col_support, col_resistance = st.columns(4)
                     
-                    with price_info:
+                    with col_price:
                         current_price = info.get('currentPrice', hist_data['Close'].iloc[-1])
                         prev_close = info.get('previousClose', hist_data['Close'].iloc[-2])
                         price_change = current_price - prev_close
                         percent_change = (price_change / prev_close) * 100
                         st.metric("Güncel Fiyat", f"${current_price:.2f}", f"{price_change:+.2f} ({percent_change:+.2f}%)")
 
-                    with summary:
+                    with col_market:
                         market_cap = info.get('marketCap', 0)
                         st.metric("Piyasa Değeri", f"${market_cap / 1_000_000_000:.2f} Milyar")
 
-                    with analysis_col:
-                        st.subheader("Genel Alım Fırsatı Değerlendirmesi")
-                        st.markdown(f"**Sonuç:** <span style='color:{'green' if buy_analysis[1]=='success' else 'orange'}; font-size: 1.2em;'>{buy_analysis[0]}</span>", unsafe_allow_html=True)
+                    with col_support:
+                        if support:
+                            st.metric("Destek / Stop Seviyesi", f"${support:.2f}")
+                        else:
+                            st.metric("Destek", "N/A")
+
+                    with col_resistance:
+                        if resistance:
+                            st.metric("Direnç / Hedef Fiyat", f"${resistance:.2f}")
+                        else:
+                            st.metric("Direnç", "N/A")
+
+                    st.subheader("Genel Alım Fırsatı Değerlendirmesi", divider='rainbow')
+                    st.markdown(f"**Sonuç:** <span style='color:{'green' if buy_analysis[1]=='success' else 'orange'}; font-size: 1.2em;'>{buy_analysis[0]}</span>", unsafe_allow_html=True)
 
                     st.markdown("---")
 
@@ -469,5 +480,6 @@ if analyze_button:
 
             except Exception as e:
                 st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+
 
 
