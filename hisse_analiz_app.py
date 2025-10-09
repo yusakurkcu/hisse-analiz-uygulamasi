@@ -156,7 +156,7 @@ with header_cols[1]: st.markdown(f"<div><h1 style='margin-bottom: -10px; color: 
 # Ana Sekmeler
 # -----------------------------------------------------------------------------
 tab_icons = ["📈", "🔍", "⭐", "💼"]
-tabs = st.tabs([f"{icon} Fırsat Taraması", f"{icon} Hisse Analizi", f"{icon} İzleme Listem", f"{icon} Portföyüm"])
+tabs = st.tabs([f"{tab_icons[0]} Fırsat Taraması", f"{tab_icons[1]} Hisse Analizi", f"{tab_icons[2]} İzleme Listem", f"{tab_icons[3]} Portföyüm"])
 
 # -----------------------------------------------------------------------------
 # Sekme 1: Hisse Taraması
@@ -278,15 +278,80 @@ with tabs[1]:
 # Sekme 3: İzleme Listesi
 # -----------------------------------------------------------------------------
 with tabs[2]:
-    # Bu sekmenin kodu önceki tam versiyon ile aynı
-    pass
+    st.header("Kişisel İzleme Listeniz")
+    if not st.session_state.watchlist: st.info("İzleme listeniz boş. 'Hisse Analizi' sekmesinden hisse ekleyebilirsiniz.")
+    else:
+        for ticker in st.session_state.watchlist:
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            try:
+                info = yf.Ticker(ticker).info
+                price = info.get('currentPrice', 0); change = info.get('regularMarketChange', 0)
+                logo_url = info.get('logo_url', f'https://logo.clearbit.com/{info.get("website", "streamlit.io").split("//")[-1].split("/")[0]}')
+                with col1: st.markdown(f"<div style='display:flex; align-items:center;'><img src='{logo_url}' width='30' style='border-radius:50%; margin-right:10px;'> <b>{info.get('shortName', ticker)} ({ticker})</b></div>", unsafe_allow_html=True)
+                with col2: st.metric("", f"${price:.2f}", f"{change:.2f}$")
+                with col3: st.metric("", f"${(info.get('marketCap', 0)/1e9):.1f}B")
+                with col4:
+                    if st.button("Listeden Kaldır", key=f"remove_{ticker}"): st.session_state.watchlist.remove(ticker); st.rerun()
+            except Exception: st.error(f"{ticker} için veri çekilemedi.")
+            st.divider()
 
 # -----------------------------------------------------------------------------
 # Sekme 4: Portföyüm
 # -----------------------------------------------------------------------------
 with tabs[3]:
-    # Bu sekmenin kodu önceki tam versiyon ile aynı
-    pass
+    st.header("Portföyüm")
+    with st.form("portfolio_form"):
+        st.subheader("Portföye Yeni Pozisyon Ekle")
+        cols = st.columns([2, 1, 1])
+        ticker = cols[0].text_input("Hisse Senedi Sembolü").upper()
+        shares = cols[1].number_input("Adet (Pay)", min_value=0.0, format="%.4f")
+        cost = cols[2].number_input("Ortalama Maliyet ($)", min_value=0.0, format="%.2f")
+        submitted = st.form_submit_button("Pozisyon Ekle")
+        if submitted and ticker and shares > 0 and cost > 0:
+            st.session_state.portfolio.append({"ticker": ticker, "shares": shares, "cost": cost})
+            st.rerun()
+
+    st.markdown("---")
+    if not st.session_state.portfolio: st.info("Portföyünüz boş. Yukarıdaki formdan yeni bir pozisyon ekleyebilirsiniz.")
+    else:
+        total_portfolio_value = 0; total_portfolio_cost = 0
+        for i, pos in enumerate(st.session_state.portfolio):
+            try:
+                info = yf.Ticker(pos['ticker']).info
+                current_price = info.get('currentPrice', 0)
+                cost_basis = pos['shares'] * pos['cost']; current_value = pos['shares'] * current_price
+                total_pl = current_value - cost_basis; total_pl_pct = (total_pl / cost_basis) * 100 if cost_basis > 0 else 0
+                total_portfolio_value += current_value; total_portfolio_cost += cost_basis
+                
+                with st.container():
+                    st.markdown(f"#### {info.get('shortName', pos['ticker'])} ({pos['ticker']})")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric(label="Mevcut Değer", value=f"${current_value:,.2f}")
+                    c2.metric(label="Toplam Kâr/Zarar", value=f"${total_pl:,.2f}", delta=f"{total_pl_pct:.2f}%")
+                    
+                    hist = yf.Ticker(pos['ticker']).history(period="6mo"); tech = calculate_technicals(hist)
+                    if tech is not None and not tech.empty:
+                        last_row = tech.iloc[-1]; _, recommendation = generate_analysis_summary(pos['ticker'], info, last_row)
+                        action_rec = "TUT"
+                        if recommendation == "AL": action_rec = "POZİSYON EKLE"
+                        elif recommendation == "SAT": action_rec = "SAT"
+                        c3.metric(label="Aksiyon Önerisi", value=action_rec)
+
+                        recent_data = tech.tail(90)
+                        support1 = recent_data['low'].min(); resistance1 = recent_data['high'].max()
+                        st.text(f"🎯 Satış Hedefi (Kâr Al): ${resistance1:.2f} | 🛑 Stop-Loss (Zarar Durdur): ${support1:.2f}")
+
+                    if st.button("Pozisyonu Sil", key=f"delete_{i}"):
+                        st.session_state.portfolio.pop(i); st.rerun()
+                st.markdown("---")
+            except Exception: st.error(f"{pos['ticker']} için analiz oluşturulamadı.")
+        
+        overall_pl = total_portfolio_value - total_portfolio_cost
+        overall_pl_pct = (overall_pl / total_portfolio_cost) * 100 if total_portfolio_cost > 0 else 0
+        st.header("Portföy Özeti")
+        p1, p2 = st.columns(2)
+        p1.metric("Toplam Portföy Değeri", f"${total_portfolio_value:,.2f}")
+        p2.metric("Toplam Kâr/Zarar", f"${overall_pl:,.2f}", delta=f"{overall_pl_pct:.2f}%")
 
 # --- FOOTER ---
 st.markdown("<hr style='border-color:#222; margin-top: 50px;'>", unsafe_allow_html=True)
