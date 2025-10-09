@@ -227,9 +227,9 @@ def analyze_option_suitability(df, calls_df, info):
         
     # Uygun kontrat önerisi
     suggestion = ""
-    # Delta verisi varsa öneri yap, yoksa genel bir mesaj göster.
+    # Delta verisi varsa ona göre, yoksa fiyata en yakın (ATM) ve en likit olanı öner.
     if result[1] in ["success", "info"]:
-        if 'delta' in calls.columns:
+        if 'delta' in calls.columns and not calls['delta'].isnull().all():
             # Delta'sı 0.5 - 0.75 arasına en yakın ve en likit olanı seç
             suitable_contracts = calls[(calls['delta'] >= 0.5) & (calls['delta'] <= 0.75)].sort_values(by='openInterest', ascending=False)
             if not suitable_contracts.empty:
@@ -237,9 +237,16 @@ def analyze_option_suitability(df, calls_df, info):
                 suggestion = (f"**Öneri:** {best_contract['strike']}$ kullanım fiyatlı (Strike) kontrat değerlendirilebilir. "
                               f"(Delta: {best_contract['delta']:.2f}, IV: {best_contract['impliedVolatility']:.2%})")
             else:
-                 suggestion = "**Bilgi:** Uygun Delta (0.5-0.75) aralığında kontrat bulunamadı."
+                 suggestion = "**Bilgi:** İstenen Delta (0.5-0.75) aralığında likit bir kontrat bulunamadı."
         else:
-            suggestion = "**Bilgi:** 'Delta' verisi mevcut olmadığı için spesifik kontrat önerisi yapılamıyor."
+            # Delta verisi yoksa, fiyata en yakın ve en likit kontratı bul
+            atm_contracts = calls.iloc[(calls['strike'] - current_price).abs().argsort()[:5]]
+            if not atm_contracts.empty:
+                best_contract = atm_contracts.sort_values(by='openInterest', ascending=False).iloc[0]
+                suggestion = (f"**Öneri (Delta verisi olmadan):** Fiyata en yakın ve en likit olan **{best_contract['strike']}$ kullanım fiyatlı (Strike)** kontrat değerlendirilebilir. "
+                              f"(IV: {best_contract['impliedVolatility']:.2%}, Açık Poz.: {best_contract['openInterest']:.0f})")
+            else:
+                suggestion = "**Bilgi:** 'Delta' verisi mevcut olmadığı için spesifik kontrat önerisi yapılamıyor."
             
     # Hata vermemesi için gösterilecek kolonları mevcut olanlar arasından seç
     display_cols = ['strike', 'lastPrice', 'delta', 'impliedVolatility', 'volume', 'openInterest']
@@ -405,6 +412,7 @@ if analyze_button:
 
             except Exception as e:
                 st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+
 
 
 
