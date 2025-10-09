@@ -345,8 +345,19 @@ if ticker_input:
             # İçeriden Öğrenenlerin İşlemleri
             st.markdown("##### İçeriden Öğrenenlerin İşlemleri (Yönetici Alım/Satımları)")
             if insider is not None and not insider.empty:
-                insider['Value ($)'] = insider['Shares'] * insider['Price']
-                st.dataframe(insider[['Insider', 'Shares', 'Value ($)', 'Transaction']], use_container_width=True)
+                # 'Value ($)' sütununu yalnızca 'Shares' ve 'Price' varsa hesapla
+                if 'Shares' in insider.columns and 'Price' in insider.columns:
+                    insider['Value ($)'] = insider['Shares'] * insider['Price']
+                
+                # Gösterilecek olası sütunları tanımla
+                possible_insider_cols = ['Insider', 'Shares', 'Value ($)', 'Price', 'Transaction']
+                # DataFrame'de gerçekten var olan sütunları seç
+                existing_insider_cols = [col for col in possible_insider_cols if col in insider.columns]
+                
+                if existing_insider_cols:
+                    st.dataframe(insider[existing_insider_cols], use_container_width=True)
+                else:
+                    st.write("Gösterilecek formatta yönetici işlemi verisi bulunamadı.")
             else:
                 st.write("Yönetici işlemi verisi bulunamadı.")
 
@@ -375,6 +386,7 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
 
 
