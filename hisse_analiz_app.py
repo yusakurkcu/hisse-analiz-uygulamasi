@@ -726,7 +726,7 @@ tab1, tab2 = st.tabs(["📈 Fırsat Taraması", "🔍 Hisse Analizi"])
 # --------------------------------------------------------------------------------------------------
 with tab1:
     st.subheader("Yüksek Hacimli Kırılım Stratejisi")
-    st.markdown("Bu araç, uzun vadeli yükseliş trendinde olan, bir süredir dar bir bantta sıkışmış ve bu sıkışmayı yüksek hacimle yukarı kırmış hisseleri tespit eder. Sadece piyasa değeri **500 Milyon Dolar**'dan büyük şirketler listelenir.")
+    st.markdown("Bu araç, uzun vadeli yükseliş trendinde olan, bir süredir dar bir bantta sıkışmış ve bu sıkışmayı yüksek hacimle yukarı kırmış hisseleri tespit eder.")
 
     if 'scan_results' not in st.session_state:
         st.session_state.scan_results = None
@@ -926,4 +926,5 @@ with tab2:
                     st.info(f"Bu Alım (Call) opsiyonu; 30-45 gün arası vadesi, yüksek likiditesi, dar alım-satım makası ve hisse fiyatına oranla makul maliyeti nedeniyle seçilmiştir. Bu bir yatırım tavsiyesi değildir.")
                 else:
                     st.warning("Bu hisse için belirtilen kriterlere (30-45 gün vade, yeterli likidite, düşük maliyet) uygun bir opsiyon kontratı bulunamadı.")
+
 
