@@ -168,7 +168,7 @@ def analyze_buying_opportunity(df, info):
 
 def analyze_option_suitability(df, calls_df, info):
     """Call opsiyonu alımına uygunluğu analiz eder."""
-    if calls_df is None:
+    if calls_df is None or calls_df.empty:
         return ("Opsiyon verisi bulunamadı.", "warning"), [], "", None
         
     signals = []
@@ -227,15 +227,25 @@ def analyze_option_suitability(df, calls_df, info):
         
     # Uygun kontrat önerisi
     suggestion = ""
+    # Delta verisi varsa öneri yap, yoksa genel bir mesaj göster.
     if result[1] in ["success", "info"]:
-        # Delta'sı 0.5 - 0.7 arasına en yakın olanı seç
-        suitable_contracts = calls[(calls['delta'] >= 0.5) & (calls['delta'] <= 0.75)]
-        if not suitable_contracts.empty:
-            best_contract = suitable_contracts.iloc[0]
-            suggestion = (f"**Öneri:** {best_contract['strike']}$ kullanım fiyatlı (Strike) kontrat değerlendirilebilir. "
-                          f"(Delta: {best_contract['delta']:.2f}, IV: {best_contract['impliedVolatility']:.2%})")
+        if 'delta' in calls.columns:
+            # Delta'sı 0.5 - 0.75 arasına en yakın ve en likit olanı seç
+            suitable_contracts = calls[(calls['delta'] >= 0.5) & (calls['delta'] <= 0.75)].sort_values(by='openInterest', ascending=False)
+            if not suitable_contracts.empty:
+                best_contract = suitable_contracts.iloc[0]
+                suggestion = (f"**Öneri:** {best_contract['strike']}$ kullanım fiyatlı (Strike) kontrat değerlendirilebilir. "
+                              f"(Delta: {best_contract['delta']:.2f}, IV: {best_contract['impliedVolatility']:.2%})")
+            else:
+                 suggestion = "**Bilgi:** Uygun Delta (0.5-0.75) aralığında kontrat bulunamadı."
+        else:
+            suggestion = "**Bilgi:** 'Delta' verisi mevcut olmadığı için spesifik kontrat önerisi yapılamıyor."
+            
+    # Hata vermemesi için gösterilecek kolonları mevcut olanlar arasından seç
+    display_cols = ['strike', 'lastPrice', 'delta', 'impliedVolatility', 'volume', 'openInterest']
+    existing_cols_in_atm = [col for col in display_cols if col in atm_calls.columns]
     
-    return result, signals, suggestion, atm_calls[['strike', 'lastPrice', 'delta', 'impliedVolatility', 'volume', 'openInterest']]
+    return result, signals, suggestion, atm_calls[existing_cols_in_atm] if not atm_calls.empty else None
 
 
 # -----------------------------------------------------------------------------
@@ -395,5 +405,6 @@ if analyze_button:
 
             except Exception as e:
                 st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+
 
 
