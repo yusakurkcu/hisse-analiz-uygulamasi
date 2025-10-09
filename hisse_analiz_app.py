@@ -5,6 +5,19 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import requests
+import locale
+
+# Türkçe tarih formatlaması için yerel ayarı ayarla
+try:
+    # 'tr_TR.UTF-8' çoğu Linux sisteminde çalışır
+    locale.setlocale(locale.LC_TIME, 'tr_TR.UTF-8')
+except locale.Error:
+    try:
+        # Windows için alternatif
+        locale.setlocale(locale.LC_TIME, 'turkish')
+    except locale.Error:
+        # Ayarlanamazsa, sistem varsayılanını kullanır (genellikle İngilizce)
+        pass
 
 # ==================================================================================================
 # TEMEL AYARLAR VE STİL YAPILANDIRMASI
@@ -726,7 +739,7 @@ tab1, tab2 = st.tabs(["📈 Fırsat Taraması", "🔍 Hisse Analizi"])
 # --------------------------------------------------------------------------------------------------
 with tab1:
     st.subheader("Yüksek Hacimli Kırılım Stratejisi")
-    st.markdown("Bu araç, uzun vadeli yükseliş trendinde olan, bir süredir dar bir bantta sıkışmış ve bu sıkışmayı yüksek hacimle yukarı kırmış hisseleri tespit eder.")
+    st.markdown("Bu araç, uzun vadeli yükseliş trendinde olan, bir süredir dar bir bantta sıkışmış ve bu sıkışmayı yüksek hacimle yukarı kırmış hisseleri tespit eder. Sadece piyasa değeri **500 Milyon Dolar**'dan büyük şirketler listelenir.")
 
     if 'scan_results' not in st.session_state:
         st.session_state.scan_results = None
