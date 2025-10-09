@@ -420,9 +420,23 @@ if analyze_button:
                             st.write(f"**Borç/Özkaynak:** {d_to_e:.2f}" if d_to_e else "N/A")
 
                         st.subheader("Yaklaşan Etkinlikler")
-                        if calendar is not None and 'Earnings Date' in calendar and not calendar['Earnings Date'].empty:
-                             st.write(f"**Bilanço Açıklama Tarihi:** {calendar['Earnings Date'][0].strftime('%Y-%m-%d')}")
-                        else:
+                        earnings_date_found = False
+                        if calendar is not None:
+                            # yfinance takvim için bir sözlük (dict) veya DataFrame döndürebilir, her iki durumu da ele alıyoruz.
+                            if isinstance(calendar, dict):
+                                # Sözlük ise, anahtarın varlığını ve listenin boş olmadığını kontrol et
+                                if 'Earnings Date' in calendar and calendar['Earnings Date']:
+                                    earnings_date = calendar['Earnings Date'][0]
+                                    st.write(f"**Bilanço Açıklama Tarihi:** {earnings_date.strftime('%Y-%m-%d')}")
+                                    earnings_date_found = True
+                            # DataFrame ise
+                            elif isinstance(calendar, pd.DataFrame):
+                                if 'Earnings Date' in calendar.columns and not calendar['Earnings Date'].dropna().empty:
+                                    earnings_date = calendar['Earnings Date'].dropna().iloc[0]
+                                    st.write(f"**Bilanço Açıklama Tarihi:** {earnings_date.strftime('%Y-%m-%d')}")
+                                    earnings_date_found = True
+                        
+                        if not earnings_date_found:
                             st.write("Yakın zamanda bir etkinlik bulunmuyor.")
                             
                     with tab3:
@@ -455,4 +469,5 @@ if analyze_button:
 
             except Exception as e:
                 st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+
 
