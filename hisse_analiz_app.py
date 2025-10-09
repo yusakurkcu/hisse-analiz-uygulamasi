@@ -42,17 +42,18 @@ def get_option_chain(ticker):
     try:
         exp_dates = stock.options
         if not exp_dates:
-            return None, None
+            return None, None, None
         
         # Analiz için en az 25 gün sonrası ilk vadeyi seç
         valid_dates = [d for d in exp_dates if (datetime.strptime(d, '%Y-%m-%d') - datetime.now()).days > 25]
         if not valid_dates:
-            return None, None
+            return None, None, None
             
         options = stock.option_chain(valid_dates[0])
-        return options, valid_dates[0]
+        # Serileştirilebilir DataFrame'leri ve tarihi döndür
+        return options.calls, options.puts, valid_dates[0]
     except Exception:
-        return None, None
+        return None, None, None
 
 # -----------------------------------------------------------------------------
 # Analiz Fonksiyonları
@@ -165,10 +166,10 @@ def analyze_buying_opportunity(df, info):
     return result, signals
 
 
-def analyze_option_suitability(df, options, info):
+def analyze_option_suitability(df, calls_df, info):
     """Call opsiyonu alımına uygunluğu analiz eder."""
-    if options is None:
-        return ("Opsiyon verisi bulunamadı.", "warning"), []
+    if calls_df is None:
+        return ("Opsiyon verisi bulunamadı.", "warning"), [], "", None
         
     signals = []
     score = 0
@@ -180,7 +181,7 @@ def analyze_option_suitability(df, options, info):
         score += 2
     else:
         signals.append("❌ Düşüş Trendi (20MA < 50MA), Call için uygun değil.")
-        return ("Call Alımı İçin Riskli", "error"), signals
+        return ("Call Alımı İçin Riskli", "error"), signals, "", None
 
     if last_row['RSI'] > 55:
         signals.append(f"✅ Güçlü Momentum (RSI: {last_row['RSI']:.2f}).")
@@ -193,7 +194,7 @@ def analyze_option_suitability(df, options, info):
         score += 1
         
     # 2. Opsiyon Zinciri Analizi
-    calls = options.calls
+    calls = calls_df
     current_price = last_row['Close']
     
     # Fiyata en yakın (At-the-money) kontratları bul
@@ -307,14 +308,14 @@ if analyze_button:
                     st.error(f"'{ticker_input}' için veri bulunamadı. Lütfen sembolü kontrol edin.")
                 else:
                     info, calendar = get_stock_info(ticker_input)
-                    options, exp_date = get_option_chain(ticker_input)
+                    calls_df, puts_df, exp_date = get_option_chain(ticker_input)
                     
                     # Analizler
                     hist_data = calculate_technical_indicators(hist_data)
                     support, resistance = find_support_resistance(hist_data)
                     
                     buy_analysis, buy_signals = analyze_buying_opportunity(hist_data, info)
-                    option_analysis, option_signals, option_suggestion, option_df = analyze_option_suitability(hist_data, options, info)
+                    option_analysis, option_signals, option_suggestion, option_df = analyze_option_suitability(hist_data, calls_df, info)
 
                     # --- SONUÇLARI GÖSTER ---
                     st.header(f"{info.get('longName', ticker_input)} ({ticker_input}) Analizi")
@@ -394,4 +395,5 @@ if analyze_button:
 
             except Exception as e:
                 st.error(f"Bir hata oluştu: {e}. Lütfen hisse senedi sembolünü kontrol edin veya daha sonra tekrar deneyin.")
+
 
