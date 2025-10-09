@@ -14,7 +14,8 @@ def setup_nltk():
     import nltk
     try:
         nltk.data.find('sentiment/vader_lexicon.zip')
-    except (LookupError, nltk.downloader.DownloadError):
+    except LookupError:
+        st.info("Gerekli dil verileri indiriliyor (yalnızca ilk çalıştırmada)...")
         nltk.download('vader_lexicon')
 setup_nltk()
 
@@ -356,4 +357,5 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
