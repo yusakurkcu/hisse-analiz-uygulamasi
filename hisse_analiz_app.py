@@ -817,8 +817,8 @@ with tab2:
             info, logo_url = get_stock_info(ticker_input)
             df = get_stock_data(ticker_input, "1y")
 
-            if info is None or df is None:
-                st.error("Hisse senedi bilgileri alınamadı. Lütfen sembolü kontrol edin.")
+            if info is None or 'shortName' not in info or df is None or df.empty:
+                st.error(f"'{ticker_input}' için veri bulunamadı. Lütfen sembolü kontrol edin veya geçerli bir borsa sembolü girdiğinizden emin olun.")
             else:
                 st.markdown("---")
                 
@@ -939,5 +939,6 @@ with tab2:
                     st.info(f"Bu Alım (Call) opsiyonu; 30-45 gün arası vadesi, yüksek likiditesi, dar alım-satım makası ve hisse fiyatına oranla makul maliyeti nedeniyle seçilmiştir. Bu bir yatırım tavsiyesi değildir.")
                 else:
                     st.warning("Bu hisse için belirtilen kriterlere (30-45 gün vade, yeterli likidite, düşük maliyet) uygun bir opsiyon kontratı bulunamadı.")
+
 
 
