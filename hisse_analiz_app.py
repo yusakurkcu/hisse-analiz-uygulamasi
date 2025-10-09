@@ -192,10 +192,22 @@ def analyze_option_suitability(df_hist, df_options, info, risk_free_rate, exp_da
         strike, last_price, oi = best_option['strike'], best_option['lastPrice'], best_option['openInterest']
         if (option_type == 'call' and is_bullish) or (option_type == 'put' and is_bearish):
             analysis_result = f"Beklentiyle **{option_type.capitalize()} Opsiyonu** düşünülebilir."
-            suggestion = f"**Öneri:** Vadesi **{exp_date_str}** olan, **${strike:.2f} kullanım fiyatlı** bir **{option_type.capitalize()}** kontratı incelenebilir. (Fiyat: ${last_price:.2f}, Açık Pozisyon: {oi:.0f})"
+            
+            # Formatlama sorunlarını önlemek için fiyat metinlerini önceden oluştur
+            strike_price_str = f"${strike:.2f}"
+            last_price_str = f"${last_price:.2f}"
+
+            suggestion = (f"**Öneri:** Vadesi **{exp_date_str}** olan, **{strike_price_str} kullanım fiyatlı** "
+                          f"bir **{option_type.capitalize()}** kontratı incelenebilir. "
+                          f"(Fiyat: {last_price_str}, Açık Pozisyon: {oi:.0f})")
+
             if option_type == 'call' and len(atm_options) > 1:
                 sell_option = atm_options.iloc[-1]
-                spread_suggestion = f"**Daha Düşük Riskli Strateji (Bull Call Spread):** **${strike:.2f}** call alıp, aynı anda **${sell_option['strike']:.2f}** call satarak maliyeti düşürebilir ve riskinizi sınırlayabilirsiniz."
+                sell_strike_price_str = f"${sell_option['strike']:.2f}"
+
+                spread_suggestion = (f"**Daha Düşük Riskli Strateji (Bull Call Spread):** **{strike_price_str}** call alıp, "
+                                     f"aynı anda **{sell_strike_price_str}** call satarak maliyeti düşürebilir ve "
+                                     f"riskinizi sınırlayabilirsiniz.")
         else:
             analysis_result = f"Mevcut trend, **{option_type.capitalize()} Opsiyonu** alımını desteklemiyor."
             suggestion = "Bu yönde bir işlem için daha uygun koşullar beklenmeli."
@@ -391,6 +403,7 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
 
 
