@@ -330,7 +330,15 @@ if ticker_input:
             st.markdown("##### Analist Tavsiyeleri")
             if recs is not None and not recs.empty:
                 recs_recent = recs.tail(5).sort_index(ascending=False)
-                st.dataframe(recs_recent[['Firm', 'To Grade']], use_container_width=True)
+                # yfinance'ten gelen veride olabilecek tüm olası sütunları tanımla
+                possible_cols = ['Firm', 'To Grade', 'From Grade', 'Action']
+                # DataFrame'de gerçekten var olan sütunları seç
+                existing_cols = [col for col in possible_cols if col in recs_recent.columns]
+                
+                if existing_cols:
+                    st.dataframe(recs_recent[existing_cols], use_container_width=True)
+                else:
+                    st.write("Gösterilecek formatta analist tavsiyesi verisi bulunamadı.")
             else:
                 st.write("Analist tavsiyesi verisi bulunamadı.")
 
@@ -367,6 +375,7 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
 
 
