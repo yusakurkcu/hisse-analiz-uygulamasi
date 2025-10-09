@@ -122,10 +122,17 @@ def analyze_sentiment(news_list):
     """Haber başlıklarının duygu analizini yapar."""
     if not news_list: return 0, []
     sia = SentimentIntensityAnalyzer()
-    for news in news_list:
-        news['sentiment'] = sia.polarity_scores(news['title'])['compound']
-    avg_sentiment = sum(n['sentiment'] for n in news_list) / len(news_list)
+    for news_item in news_list:
+        title = news_item.get('title')
+        if title and isinstance(title, str):
+            news_item['sentiment'] = sia.polarity_scores(title)['compound']
+        else:
+            news_item['sentiment'] = 0.0  # Başlık yoksa nötr olarak ata
+    
+    # Haber listesi boş değilse ortalama duyarlılığı hesapla
+    avg_sentiment = sum(n.get('sentiment', 0) for n in news_list) / len(news_list) if news_list else 0
     return avg_sentiment, news_list
+
 
 # ... (calculate_greeks, analyze_buying_opportunity, analyze_option_suitability fonksiyonları öncekiyle aynı, yer kaplamaması için çıkarıldı) ...
 def calculate_greeks(df, stock_price, risk_free_rate, exp_date_str, option_type='c'):
@@ -357,5 +364,6 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
+
 
 
