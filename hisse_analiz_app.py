@@ -32,7 +32,6 @@ st.set_page_config(
 # --- CSS Stil Tanımlamaları ---
 st.markdown("""
 <style>
-    /* ... (CSS stilleri öncekiyle aynı, yer kaplamaması için çıkarıldı) ... */
     .stMetric { border-radius: 10px; padding: 15px; background-color: #262730; border: 1px solid #262730; }
     .stMetric .st-ae { font-size: 1.1em; font-weight: bold; color: #fafafa; }
     .stMetric .st-af { font-size: 1.5em; font-weight: bold; }
@@ -44,22 +43,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- ÖNBELLEKLEME FONKSİYONLARI ---
+# --- ÖNBELLEKLEME FONKSİYONLARI (Daha Dayanıklı) ---
 @st.cache_data(ttl=300)
 def get_stock_data(ticker):
     try:
         stock = yf.Ticker(ticker)
         hist = stock.history(period="1y")
-        return None if hist.empty else hist
+        if hist.empty: return None
+        # HATA DÜZELTME: Sadece tek bir işlem günü olan hisseler için hata vermemesi sağlandı.
+        if len(hist) < 2:
+             hist['MA20'], hist['MA50'], hist['RSI'], hist['MACD'], hist['Signal_Line'] = [np.nan] * 5
+        else:
+            hist = add_technical_indicators(hist)
+        return hist
     except Exception: return None
 
 @st.cache_data(ttl=300)
 def get_stock_info(ticker):
     try:
         stock = yf.Ticker(ticker)
-        return stock.info, stock.calendar
+        info = stock.info
+        # HATA DÜZELTME: Bazen 'info' boş bir sözlük dönebilir, bu durumu kontrol et.
+        if not info or info.get('regularMarketPrice') is None: return None, None
+        return info, stock.calendar
     except Exception: return None, None
 
+# ... (Diğer get fonksiyonları aynı) ...
 @st.cache_data(ttl=300)
 def get_advanced_stock_info(ticker):
     """Analist notları, içeriden öğrenen işlemleri ve haberleri çeker."""
@@ -91,14 +100,16 @@ def get_risk_free_rate():
         return hist['Close'].iloc[-1] / 100 if not hist.empty else 0.04
     except Exception: return 0.04
 
-# --- ANALİZ FONKSİYONLARI ---
+
+# --- ANALİZ FONKSİYONLARI (İyileştirildi) ---
 def add_technical_indicators(df):
     df['MA20'] = df['Close'].rolling(window=20).mean()
     df['MA50'] = df['Close'].rolling(window=50).mean()
     delta_val = df['Close'].diff()
     gain = delta_val.where(delta_val > 0, 0).rolling(window=14).mean()
     loss = -delta_val.where(delta_val < 0, 0).rolling(window=14).mean()
-    rs = gain / loss
+    # HATA DÜZELTME: 'loss' sıfır ise RSI hesaplamasında hata oluşmasını engelle.
+    rs = gain / loss.replace(0, 0.000001) # Sıfıra bölme hatasını önle
     df['RSI'] = 100 - (100 / (1 + rs))
     ema12 = df['Close'].ewm(span=12, adjust=False).mean()
     ema26 = df['Close'].ewm(span=26, adjust=False).mean()
@@ -106,6 +117,7 @@ def add_technical_indicators(df):
     df['Signal_Line'] = df['MACD'].ewm(span=9, adjust=False).mean()
     return df
 
+# ... (find_support_resistance, analyze_sentiment, calculate_greeks fonksiyonları aynı) ...
 def find_support_resistance(df):
     recent_df = df.tail(180)
     if len(recent_df) < 11: return None, None
@@ -134,7 +146,6 @@ def analyze_sentiment(news_list):
     return avg_sentiment, news_list
 
 
-# ... (calculate_greeks, analyze_buying_opportunity, analyze_option_suitability fonksiyonları öncekiyle aynı, yer kaplamaması için çıkarıldı) ...
 def calculate_greeks(df, stock_price, risk_free_rate, exp_date_str, option_type='c'):
     if df is None or df.empty: return df
     today = datetime.now().date()
@@ -149,15 +160,21 @@ def calculate_greeks(df, stock_price, risk_free_rate, exp_date_str, option_type=
     df['vega'] = df.apply(lambda r: vega(option_type, stock_price, r['strike'], time_to_expiry, risk_free_rate, r['impliedVolatility']), axis=1)
     return df
 
+
 def analyze_buying_opportunity(df, info):
     signals, score = [], 0
     last, prev = df.iloc[-1], df.iloc[-2]
-    if last['RSI'] > 30 and prev['RSI'] <= 30: signals.append("✅ RSI aşırı satım bölgesinden yukarı döndü."); score += 2
-    elif last['RSI'] < 30: signals.append("⚠️ RSI aşırı satım bölgesinde, dönüş bekleniyor."); score += 1
-    else: signals.append("➖ RSI nötr veya aşırı alım bölgesinde.")
-    if last['MA20'] > last['MA50'] and prev['MA20'] <= prev['MA50']: signals.append("✅ Golden Cross sinyali oluştu (MA20, MA50'yi yukarı kesti)."); score += 2
-    elif last['MA20'] > last['MA50']: signals.append("➖ Kısa vadeli ortalama, uzun vadelinin üzerinde (Pozitif)."); score += 1
-    else: signals.append("➖ Death Cross aktif (MA20, MA50'nin altında).")
+    # HATA DÜZELTME: Göstergeler NaN olabilir, bu durumu kontrol et.
+    if pd.notna(last['RSI']) and pd.notna(prev['RSI']):
+        if last['RSI'] > 30 and prev['RSI'] <= 30: signals.append("✅ RSI aşırı satım bölgesinden yukarı döndü."); score += 2
+        elif last['RSI'] < 30: signals.append("⚠️ RSI aşırı satım bölgesinde, dönüş bekleniyor."); score += 1
+        else: signals.append("➖ RSI nötr veya aşırı alım bölgesinde.")
+    if pd.notna(last['MA20']) and pd.notna(last['MA50']):
+        if last['MA20'] > last['MA50'] and prev['MA20'] <= prev['MA50']: signals.append("✅ Golden Cross sinyali oluştu (MA20, MA50'yi yukarı kesti)."); score += 2
+        elif last['MA20'] > last['MA50']: signals.append("➖ Kısa vadeli ortalama, uzun vadelinin üzerinde (Pozitif)."); score += 1
+        else: signals.append("➖ Death Cross aktif (MA20, MA50'nin altında).")
+    
+    # ... (Diğer sinyal kontrolleri aynı) ...
     if last['Volume'] > df['Volume'].rolling(window=20).mean().iloc[-1] and last['Close'] > prev['Close']: signals.append("✅ Yükseliş, ortalamanın üzerinde bir hacimle destekleniyor."); score += 1
     else: signals.append("➖ Hacim, yükselişi belirgin şekilde desteklemiyor.")
     pe = info.get('trailingPE'); d_to_e = info.get('debtToEquity')
@@ -167,12 +184,15 @@ def analyze_buying_opportunity(df, info):
     if d_to_e is not None and d_to_e < 100: signals.append(f"✅ Borç/Özkaynak oranı ({d_to_e/100:.2f}) sağlıklı."); score += 1
     elif d_to_e is not None: signals.append(f"⚠️ Borç/Özkaynak oranı ({d_to_e/100:.2f}) yüksek.")
     else: signals.append("➖ Borçluluk verisi bulunamadı.")
+
+    if not signals: return ("Analiz için yeterli veri yok", "warning", [])
     if score >= 5: return ("Güçlü Alım Fırsatı", "success", signals)
     elif score >= 3: return ("Potansiyel Alım Fırsatı", "success", signals)
     else: return ("Alım İçin Henüz Erken", "warning", signals)
 
 def analyze_option_suitability(df_hist, df_options, info, risk_free_rate, exp_date_str, option_type='call'):
     signals, suggestion = [], "Spesifik kontrat önerisi yapılamıyor."
+    # ... (Fonksiyonun geri kalanı aynı) ...
     if df_options is None or df_options.empty: return "Opsiyon verisi bulunamadı.", signals, suggestion, None, None
     last = df_hist.iloc[-1]; current_price = last['Close']
     df_options = calculate_greeks(df_options, current_price, risk_free_rate, exp_date_str, 'c' if option_type == 'call' else 'p')
@@ -215,10 +235,11 @@ def analyze_option_suitability(df_hist, df_options, info, risk_free_rate, exp_da
     existing_cols = [col for col in display_cols if col in df_options.columns]
     return analysis_result, signals, suggestion, df_options[existing_cols], spread_suggestion
 
+
 # --- ANA UYGULAMA ARAYÜZÜ ---
 st.title("🚀 Profesyonel Hisse Senedi Analiz Aracı")
 
-# --- KENAR ÇUBUĞU ---
+# --- KENAR ÇUBUĞU (Aynı) ---
 if 'watchlist' not in st.session_state:
     st.session_state.watchlist = ['AAPL', 'NVDA', 'TSLA', 'GOOGL']
 
@@ -232,7 +253,6 @@ if st.sidebar.button("Ekle"):
         st.session_state.watchlist.append(new_stock)
     st.rerun()
 
-# İzleme listesini ve kaldırma butonlarını göster
 for stock_symbol in st.session_state.watchlist:
     col1, col2 = st.sidebar.columns([3, 1])
     col1.markdown(f"**{stock_symbol}**")
@@ -242,30 +262,35 @@ for stock_symbol in st.session_state.watchlist:
 st.sidebar.info("Analiz için listedeki bir sembolü kopyalayıp yukarıdaki kutucuğa yapıştırabilirsiniz.")
 
 
-# --- ANA İÇERİK ---
+# --- ANA İÇERİK (Daha Dayanıklı) ---
 if ticker_input:
+    # Veri çekme ve ilk kontroller
     hist_data = get_stock_data(ticker_input)
-    
-    if hist_data is None:
-        st.error("Hisse senedi sembolü bulunamadı veya veri çekilemedi. Lütfen kontrol edin.")
+    info, calendar = get_stock_info(ticker_input)
+
+    # HATA DÜZELTME: Temel veriler olmadan analiz yapılamaz, bu durumu en başta kontrol et.
+    if hist_data is None or info is None:
+        st.error(f"'{ticker_input}' için temel fiyat veya şirket verisi çekilemedi. Lütfen sembolü kontrol edin veya daha sonra tekrar deneyin.")
     else:
-        info, calendar = get_stock_info(ticker_input)
+        # Gelişmiş verileri çek
         recs, insider, news = get_advanced_stock_info(ticker_input)
         calls_df, puts_df, exp_date = get_option_chain(ticker_input)
         risk_free_rate = get_risk_free_rate()
         
-        hist_data = add_technical_indicators(hist_data)
+        # Analizleri yap
         support, resistance = find_support_resistance(hist_data)
         buy_analysis = analyze_buying_opportunity(hist_data, info)
         
         st.header(f"{info.get('longName', ticker_input)} ({ticker_input}) Analizi")
         
-        # ... (Genel Bakış ve Ticaret Planı öncekiyle aynı, yer kaplamaması için çıkarıldı) ...
         col_main, col_plan = st.columns([2, 1.5])
         with col_main:
             col_price, col_market, col_risk = st.columns(3)
-            current_price = info.get('currentPrice', hist_data['Close'].iloc[-1]); prev_close = info.get('previousClose', hist_data['Close'].iloc[-2])
-            price_change = current_price - prev_close; percent_change = (price_change / prev_close) * 100
+            current_price = info.get('currentPrice', hist_data['Close'].iloc[-1])
+            # HATA DÜZELTME: Sadece 1 günlük veri varsa 'prev_close' hatasını önle.
+            prev_close = hist_data['Close'].iloc[-2] if len(hist_data) > 1 else current_price
+            price_change = current_price - prev_close
+            percent_change = (price_change / prev_close) * 100 if prev_close != 0 else 0
             col_price.metric("Güncel Fiyat", f"${current_price:.2f}", f"{price_change:+.2f} ({percent_change:+.2f}%)")
             col_market.metric("Piyasa Değeri", f"${info.get('marketCap', 0) / 1e9:.2f} Milyar")
             beta = info.get('beta')
@@ -273,14 +298,21 @@ if ticker_input:
             if beta:
                 if beta < 1.0: risk_level, risk_color = "Düşük", "risk-low"
                 elif beta > 1.5: risk_level, risk_color = "Yüksek", "risk-high"
-            col_risk.markdown(f"**Risk Seviyesi**<br><span class='{risk_color}' style='font-size: 1.5em; font-weight:bold;'>{risk_level}</span>", unsafe_allow_html=True, help=f"Beta: {beta:.2f}\n\nBeta, hissenin piyasanın geneline göre ne kadar dalgalı olduğunu gösterir. 1'den büyükse piyasadan daha riskli, 1'den küçükse daha az riskli kabul edilir.")
+            col_risk.markdown(f"**Risk Seviyesi**<br><span class='{risk_color}' style='font-size: 1.5em; font-weight:bold;'>{risk_level}</span>", unsafe_allow_html=True, help=f"Beta: {beta:.2f if beta else 'N/A'}\n\nBeta, hissenin piyasanın geneline göre ne kadar dalgalı olduğunu gösterir...")
+        
         with col_plan:
             st.markdown("**Ticaret Planı Önerisi**")
-            entry, stop, target = f"${current_price:.2f}", (f"${support:.2f}" if support else "N/A"), (f"${resistance:.2f}" if resistance else "N/A")
+            entry = f"${current_price:.2f}"
+            stop = f"${support:.2f}" if support else "N/A"
+            target = f"${resistance:.2f}" if resistance else "N/A"
             rr_ratio = "N/A"
-            if support and resistance and (current_price - support) > 0: rr_ratio = f"{(resistance - current_price) / (current_price - support):.2f} : 1"
+            # HATA DÜZELTME: Sıfıra bölme hatasını önle.
+            price_minus_support = current_price - support if support else 0
+            if resistance and support and price_minus_support > 0:
+                rr_ratio = f"{(resistance - current_price) / price_minus_support:.2f} : 1"
             st.markdown(f"- **Giriş:** <span style='color: white;'>{entry}</span>\n- **Zarar Durdur (Stop):** <span style='color: #dc3545;'>{stop}</span>\n- **Kâr Al (Hedef):** <span style='color: #28a745;'>{target}</span>\n- **Kazanç/Risk Oranı:** <span style='color: white;'>{rr_ratio}</span>", unsafe_allow_html=True)
         
+        # ... (Arayüzün geri kalanı büyük ölçüde aynı, küçük hata düzeltmeleri içeriyor) ...
         st.subheader("Genel Alım Fırsatı Değerlendirmesi", divider='rainbow')
         st.markdown(f"**Sonuç:** <span style='color:{'#28a745' if buy_analysis[1]=='success' else '#ffc107'}; font-size: 1.2em;'>{buy_analysis[0]}</span>", unsafe_allow_html=True)
         with st.expander("Detaylı Sinyalleri Gör"):
@@ -289,8 +321,7 @@ if ticker_input:
 
         tab1, tab2, tab3, tab4 = st.tabs(["📊 Teknik Analiz", "🏢 Temel Analiz", "💡 Derinlemesine Analiz", "⛓️ Opsiyon Analizi"])
         
-        with tab1: # Teknik Analiz
-             # ... (Grafik kodu öncekiyle aynı, yer kaplamaması için çıkarıldı) ...
+        with tab1:
             st.subheader("Fiyat Grafiği ve Teknik Göstergeler")
             fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
             fig.add_trace(go.Candlestick(x=hist_data.index, open=hist_data['Open'], high=hist_data['High'], low=hist_data['Low'], close=hist_data['Close'], name='Fiyat'), row=1, col=1)
@@ -304,7 +335,7 @@ if ticker_input:
             fig.update_yaxes(title_text="Fiyat ($)", row=1, col=1); fig.update_yaxes(title_text="RSI", row=2, col=1)
             st.plotly_chart(fig, use_container_width=True)
 
-        with tab2: # Temel Analiz
+        with tab2:
             st.subheader("Şirket Bilgileri ve Temel Veriler")
             col1, col2 = st.columns(2)
             with col1:
@@ -313,15 +344,14 @@ if ticker_input:
             with col2:
                 st.markdown("**Finansal Metrikler:**")
                 pe = info.get('trailingPE')
-                st.metric("Fiyat/Kazanç (F/K)", f"{pe:.2f}" if pe else "N/A", help="Hisse fiyatının, hisse başına yıllık kârına oranıdır. Düşük olması genellikle 'ucuz' olarak yorumlanır.")
+                st.metric("Fiyat/Kazanç (F/K)", f"{pe:.2f}" if pe else "N/A", help="Hisse fiyatının, hisse başına yıllık kârına oranıdır...")
                 target_price = info.get('targetMeanPrice')
                 st.metric("Analistlerin Ortalama Hedef Fiyatı", f"${target_price:.2f}" if target_price else "N/A")
                 short_ratio = info.get('shortRatio')
-                st.metric("Açığa Satış Oranı (Short Ratio)", f"{short_ratio:.2f}" if short_ratio else "N/A", help="Piyasadaki açığa satılan hisse sayısının, ortalama günlük işlem hacmine bölünmesiyle bulunur. Yüksek olması, hisse üzerinde düşüş beklentisinin yoğun olduğunu gösterir.")
+                st.metric("Açığa Satış Oranı (Short Ratio)", f"{short_ratio:.2f}" if short_ratio else "N/A", help="Piyasadaki açığa satılan hisse sayısının...")
         
-        with tab3: # Derinlemesine Analiz
+        with tab3:
             st.subheader("Piyasa Beklentileri ve Şirket İçi Gelişmeler")
-            # Haber ve Duygu Analizi
             st.markdown("##### Haber Akışı ve Piyasa Duyarlılığı")
             if news:
                 avg_sentiment, news_with_sentiment = analyze_sentiment(news)
@@ -330,56 +360,37 @@ if ticker_input:
                 elif avg_sentiment < -0.1: sentiment_text = "Negatif"
                 st.metric("Ortalama Haber Duyarlılığı", sentiment_text)
                 with st.expander("Son Haber Başlıkları"):
-                    # Sadece başlığı olan haberleri filtrele
                     valid_news = [n for n in news_with_sentiment if n.get('title')]
                     if valid_news:
                         for n in valid_news[:5]:
-                            title = n.get('title', 'Başlık Bulunamadı')
-                            link = n.get('link', '#')
-                            sentiment = n.get('sentiment', 0.0)
+                            title = n.get('title'); link = n.get('link', '#'); sentiment = n.get('sentiment', 0.0)
                             st.markdown(f"- [{title}]({link}) (Duygu: {sentiment:.2f})")
                     else:
                         st.write("Başlıklı haber bulunamadı.")
             else:
                 st.write("Haber bulunamadı.")
             
-            # Analist Notları
             st.markdown("##### Analist Tavsiyeleri")
             if recs is not None and not recs.empty:
                 recs_recent = recs.tail(5).sort_index(ascending=False)
-                # yfinance'ten gelen veride olabilecek tüm olası sütunları tanımla
                 possible_cols = ['Firm', 'To Grade', 'From Grade', 'Action']
-                # DataFrame'de gerçekten var olan sütunları seç
                 existing_cols = [col for col in possible_cols if col in recs_recent.columns]
-                
-                if existing_cols:
-                    st.dataframe(recs_recent[existing_cols], use_container_width=True)
-                else:
-                    st.write("Gösterilecek formatta analist tavsiyesi verisi bulunamadı.")
+                if existing_cols: st.dataframe(recs_recent[existing_cols], use_container_width=True)
+                else: st.write("Gösterilecek formatta analist tavsiyesi verisi bulunamadı.")
             else:
                 st.write("Analist tavsiyesi verisi bulunamadı.")
 
-            # İçeriden Öğrenenlerin İşlemleri
             st.markdown("##### İçeriden Öğrenenlerin İşlemleri (Yönetici Alım/Satımları)")
             if insider is not None and not insider.empty:
-                # 'Value ($)' sütununu yalnızca 'Shares' ve 'Price' varsa hesapla
-                if 'Shares' in insider.columns and 'Price' in insider.columns:
-                    insider['Value ($)'] = insider['Shares'] * insider['Price']
-                
-                # Gösterilecek olası sütunları tanımla
+                if 'Shares' in insider.columns and 'Price' in insider.columns: insider['Value ($)'] = insider['Shares'] * insider['Price']
                 possible_insider_cols = ['Insider', 'Shares', 'Value ($)', 'Price', 'Transaction']
-                # DataFrame'de gerçekten var olan sütunları seç
                 existing_insider_cols = [col for col in possible_insider_cols if col in insider.columns]
-                
-                if existing_insider_cols:
-                    st.dataframe(insider[existing_insider_cols], use_container_width=True)
-                else:
-                    st.write("Gösterilecek formatta yönetici işlemi verisi bulunamadı.")
+                if existing_insider_cols: st.dataframe(insider[existing_insider_cols], use_container_width=True)
+                else: st.write("Gösterilecek formatta yönetici işlemi verisi bulunamadı.")
             else:
                 st.write("Yönetici işlemi verisi bulunamadı.")
 
-        with tab4: # Opsiyon Analizi
-            # ... (Opsiyon analizi kodu, Bull Call Spread önerisi eklenmiş haliyle) ...
+        with tab4:
             st.subheader("Opsiyon Zinciri Analizi")
             if exp_date:
                 st.info(f"Analiz, **{exp_date}** vadeli opsiyonlar için yapılmıştır.")
@@ -403,11 +414,4 @@ if ticker_input:
                 st.warning("Bu hisse senedi için opsiyon verisi bulunamadı.")
 else:
     st.info("Lütfen analiz etmek için soldaki menüden bir hisse senedi sembolü girin.")
-
-
-
-
-
-
-
 
