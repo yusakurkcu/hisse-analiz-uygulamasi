@@ -159,7 +159,8 @@ with header_cols[1]: st.markdown(f"<div><h1 style='margin-bottom: -10px; color: 
 # Ana Sekmeler
 # -----------------------------------------------------------------------------
 tab_icons = ["📈", "🔍"]
-tabs = st.tabs([f"{icon} Fırsat Taraması", f"{icon} Hisse Analizi"])
+tab_labels = ["Fırsat Taraması", "Hisse Analizi"]
+tabs = st.tabs([f"{icon} {label}" for icon, label in zip(tab_icons, tab_labels)])
 
 # -----------------------------------------------------------------------------
 # Sekme 1: Hisse Taraması
