@@ -653,6 +653,8 @@ def get_smart_option(ticker, stock_price):
     try:
         stock = yf.Ticker(ticker)
         exp_dates = stock.options
+        if not exp_dates:
+            return None
         
         today = datetime.now()
         min_exp = today + timedelta(days=30)
@@ -667,9 +669,18 @@ def get_smart_option(ticker, stock_price):
 
             option_chain = stock.option_chain(date)
             calls = option_chain.calls
+            if calls.empty:
+                continue
+            
+            # Hata Düzeltmesi: Vade tarihini manuel ekle ve sütun adlarını standartlaştır
+            calls['expiration'] = date
+            calls.columns = calls.columns.str.lower()
+
+            if 'openinterest' not in calls.columns:
+                continue
             
             # Filtreleme
-            calls = calls[calls['openInterest'] > 50] # Likidite
+            calls = calls[calls['openinterest'] > 50] # Likidite
             calls['spread'] = calls['ask'] - calls['bid']
             calls = calls[calls['spread'] < 0.5] # Dar makas
             calls = calls[calls['ask'] < (stock_price * 0.10)] # Maliyet
@@ -684,6 +695,8 @@ def get_smart_option(ticker, stock_price):
             return None
             
         all_options = pd.concat(suitable_contracts)
+        if all_options.empty:
+            return None
         
         # En ucuz olanı seç
         best_option = all_options.loc[all_options['ask'].idxmin()]
@@ -901,12 +914,14 @@ with tab2:
                 
                 if best_option is not None:
                     o_col1, o_col2, o_col3, o_col4 = st.columns(4)
-                    exp_date = datetime.fromtimestamp(best_option['expiration']).strftime('%d %B %Y')
+                    
+                    # Hata Düzeltmesi: Tarih formatı metin olarak geldiği için strptime kullanıldı ve sütun adları küçük harfe çevrildi.
+                    exp_date = datetime.strptime(best_option['expiration'], '%Y-%m-%d').strftime('%d %B %Y')
                     
                     o_col1.metric("Vade Tarihi", exp_date)
                     o_col2.metric("Kullanım Fiyatı (Strike)", f"${best_option['strike']:.2f}")
                     o_col3.metric("Kontrat Primi (Maliyet)", f"${best_option['ask']:.2f}")
-                    o_col4.metric("Açık Pozisyon", f"{best_option['openInterest']:.0f}")
+                    o_col4.metric("Açık Pozisyon", f"{best_option['openinterest']:.0f}")
 
                     st.info(f"Bu Alım (Call) opsiyonu; 30-45 gün arası vadesi, yüksek likiditesi, dar alım-satım makası ve hisse fiyatına oranla makul maliyeti nedeniyle seçilmiştir. Bu bir yatırım tavsiyesi değildir.")
                 else:
