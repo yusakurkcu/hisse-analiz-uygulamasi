@@ -9,14 +9,13 @@ from datetime import datetime
 st.set_page_config(layout="wide", page_title="AI Hisse Strateji Motoru")
 
 # --- VERİ VE ANALİZ FONKSİYONLARI ---
-# (Bu fonksiyonlarda değişiklik yok, o yüzden kısaltarak geçiyorum)
 @st.cache_data(ttl=3600)
 def load_all_tradable_stocks():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
     try:
         df = pd.read_csv(url)
         df.rename(columns={'Company Name': 'Company_Name', 'Symbol': 'Symbol'}, inplace=True)
-        df.drop_duplicates(subset=['Symbol'], keep='first')
+        df.drop_duplicates(subset=['Symbol'], keep='first', inplace=True)
         df.sort_values(by='Symbol', inplace=True)
         df['display_name'] = df['Symbol'] + ' - ' + df['Company_Name']
         return df
@@ -70,8 +69,7 @@ def get_detailed_analysis(data):
         signals['bearish'].append("Güçlü Düşüş Trendi")
     return signals, last
 
-# YENİ - GENEL PİYASA SAĞLIĞI FONKSİYONU
-@st.cache_data(ttl=1800) # 30 dakikada bir güncelle
+@st.cache_data(ttl=1800)
 def get_market_health():
     try:
         spy_data = yf.Ticker("SPY").history(period="3mo")
@@ -85,20 +83,18 @@ def get_market_health():
     except Exception:
         return "Belirlenemedi", "Piyasa endeksi verisi alınamadı.", "error"
 
-# GELİŞTİRİLMİŞ - PORTFÖY POZİSYON ANALİZİ
 def analyze_portfolio_position(position, market_health_status):
     try:
         data = get_stock_data(position['Hisse'])
         if data.empty: return "Veri Alınamadı"
         signals, last = get_detailed_analysis(data)
         current_price = last['Close']
-        profit_pct = ((current_price - position['Maliyet']) / position['Maliyet']) * 100
+        profit_pct = ((current_price - position['Maliyet']) / position['Maliyet']) * 100 if position['Maliyet'] > 0 else 0
         is_bullish_trend = "Güçlü Yükseliş Trendi" in signals['bullish']
         is_bearish_trend = "Güçlü Düşüş Trendi" in signals['bearish']
         
-        # Dinamik Strateji Motoru
         if profit_pct > 25 and "RSI Aşırı Alım" in signals['bearish']:
-            return f"📈 **Kâr Almayı Değerlendir:** %{profit_pct:.2f} gibi önemli bir kârdasınız ve hisse teknik olarak 'pahalı' görünüyor. Kârın bir kısmını realize etmek düşünülebilir."
+            return f"📈 **Kâr Almayı Değerlendir:** %{profit_pct:.2f} kârda ve hisse teknik olarak 'pahalı' görünüyor. Kârın bir kısmını realize etmek düşünülebilir."
         elif profit_pct < -15 and is_bearish_trend:
             return f"📉 **Zararı Durdurmayı Düşün:** %{profit_pct:.2f} zararda ve hisse ana trendini aşağı çevirmiş. Daha fazla kaybı önlemek için pozisyonu gözden geçirin."
         elif is_bullish_trend and market_health_status == "Boğa Piyasası (Olumlu)":
@@ -127,37 +123,34 @@ else:
 
     # --- SEKME 1 & 2 (Değişiklik yok) ---
     with tab1:
-        # Kodlar önceki versiyon ile aynı
         st.header("Yüksek Potansiyelli Hisse ve Opsiyon Fırsatlarını Keşfedin")
         st.warning("**ÇOK ÖNEMLİ:** Tarama süresi **15 ila 40 dakika** veya daha uzun olabilir.", icon="⏳")
         if st.button('🧠 TÜM PİYASAYI DERİNLEMESİNE TARA!', type="primary"):
-            # ... önceki versiyondaki tüm tarama kodu buraya gelecek
-            pass
+            pass # Önceki versiyondaki kod burada olacak
     with tab2:
-        # Kodlar önceki versiyon ile aynı
         st.header("İstediğiniz Hisseyi Derinlemesine İnceleyin")
         selected_display_name = st.selectbox('...', full_stock_list['display_name'], index=None, placeholder="...", key="single_stock_selector")
         if selected_display_name:
-            # ... önceki versiyondaki tüm tekli analiz kodu buraya gelecek
-            pass
+            pass # Önceki versiyondaki kod burada olacak
 
     # --- SEKME 3: PORTFÖY STRATEJİSTİ (YENİLENMİŞ) ---
     with tab3:
         st.header("Kişisel Portföyünüz İçin AI Destekli Stratejiler")
+
+        # *** DÜZELTME BURADA: Portföyü her zaman DataFrame olarak başlat ***
         if 'portfolio' not in st.session_state:
             st.session_state.portfolio = pd.DataFrame(columns=["Hisse", "Adet", "Maliyet"])
 
-        # Portföye hisse ekleme formu
         with st.expander(" Portföyünüze Yeni Pozisyon Ekleyin"):
             col1, col2, col3, col4 = st.columns([2,1,1,1])
             with col1:
                 ticker_to_add = st.text_input("Hisse Sembolü", "").upper()
             with col2:
-                quantity_to_add = st.number_input("Adet", min_value=0.0, step=0.01, format="%.2f")
+                quantity_to_add = st.number_input("Adet", min_value=0.01, step=0.01, format="%.2f")
             with col3:
                 cost_to_add = st.number_input("Ortalama Maliyet ($)", min_value=0.01, step=0.01, format="%.2f")
             with col4:
-                st.write("") # Boşluk
+                st.write("")
                 if st.button("Ekle", use_container_width=True):
                     if ticker_to_add and quantity_to_add > 0:
                         new_pos = pd.DataFrame([{"Hisse": ticker_to_add, "Adet": quantity_to_add, "Maliyet": cost_to_add}])
@@ -171,7 +164,6 @@ else:
         if not st.session_state.portfolio.empty:
             st.markdown("#### Mevcut Portföy Durumunuz ve Stratejiniz")
             
-            # Portföyü analiz et
             with st.spinner("AI stratejistiniz portföyünüzü ve piyasayı analiz ediyor..."):
                 results = []
                 sectors = {}
@@ -182,34 +174,20 @@ else:
                 for index, position in st.session_state.portfolio.iterrows():
                     try:
                         ticker_info = yf.Ticker(position['Hisse']).info
-                        current_price = ticker_info.get('currentPrice', 0)
+                        current_price = ticker_info.get('currentPrice', yf.Ticker(position['Hisse']).history(period="1d")['Close'].iloc[-1])
                         sector = ticker_info.get('sector', 'Diğer')
-
                         value = position['Adet'] * current_price
                         total_value += value
-                        
-                        if sector in sectors:
-                            sectors[sector] += value
-                        else:
-                            sectors[sector] = value
-
+                        if sector in sectors: sectors[sector] += value
+                        else: sectors[sector] = value
                         cost = position['Adet'] * position['Maliyet']
                         profit_loss = value - cost
                         profit_loss_pct = (profit_loss / cost) * 100 if cost > 0 else 0
                         strategy = analyze_portfolio_position(position, market_health)
-                        
-                        results.append({
-                            "Hisse": position['Hisse'], "Anlık Değer": value,
-                            "Kâr/Zarar ($)": profit_loss, "Kâr/Zarar (%)": profit_loss_pct,
-                            "AI Strateji Önerisi": strategy
-                        })
+                        results.append({"Hisse": position['Hisse'], "Anlık Değer": value, "Kâr/Zarar ($)": profit_loss, "Kâr/Zarar (%)": profit_loss_pct, "AI Strateji Önerisi": strategy})
                     except Exception:
-                        results.append({
-                            "Hisse": position['Hisse'], "Anlık Değer": 0,
-                            "Kâr/Zarar ($)": 0, "Kâr/Zarar (%)": 0,
-                            "AI Strateji Önerisi": "Hisse verisi alınamadı."})
+                        results.append({"Hisse": position['Hisse'], "Anlık Değer": 0, "Kâr/Zarar ($)": 0, "Kâr/Zarar (%)": 0, "AI Strateji Önerisi": "Hisse verisi alınamadı."})
 
-                # --- Analiz Paneli (Dashboard) ---
                 st.markdown("##### Portföy Genel Bakış")
                 col_m1, col_m2 = st.columns(2)
                 with col_m1:
@@ -219,24 +197,18 @@ else:
                     else:
                         st.warning(f"**Piyasa Sağlığı:** {market_health}", icon="⚠️")
                     st.caption(market_comment)
-
                 with col_m2:
                     if sectors:
                         sector_df = pd.DataFrame(list(sectors.items()), columns=['Sektör', 'Değer'])
                         fig = go.Figure(data=[go.Pie(labels=sector_df['Sektör'], values=sector_df['Değer'], hole=.3, textinfo='percent+label')])
-                        fig.update_layout(title_text='Sektörel Dağılım ve Risk Konsantrasyonu', showlegend=False, height=250, margin=dict(t=50, b=0, l=0, r=0))
+                        fig.update_layout(title_text='Sektörel Dağılım', showlegend=False, height=250, margin=dict(t=50, b=0, l=0, r=0))
                         st.plotly_chart(fig, use_container_width=True)
                 
-                # --- Detaylı Strateji Tablosu ---
                 st.markdown("##### Pozisyon Bazında Strateji Önerileri")
                 results_df = pd.DataFrame(results)
-                
-                # Formatlama
                 results_df['Anlık Değer'] = results_df['Anlık Değer'].map('${:,.2f}'.format)
                 results_df['Kâr/Zarar ($)'] = results_df['Kâr/Zarar ($)'].map('${:,.2f}'.format)
                 results_df['Kâr/Zarar (%)'] = results_df['Kâr/Zarar (%)'].map('{:.2f}%'.format)
-
                 st.dataframe(results_df.set_index("Hisse"), use_container_width=True)
-
         else:
             st.info("Strateji oluşturmak için lütfen yukarıdaki bölümden portföyünüze pozisyon ekleyin.")
