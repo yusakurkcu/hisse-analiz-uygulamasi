@@ -2,216 +2,186 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-from newsapi import NewsApiClient
-from textblob import TextBlob
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+import time
 
-# --- GÜVENLİK VE API AYARLARI ---
-NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2"
-newsapi = NewsApiClient(api_key=NEWS_API_KEY)
+# --- UYGULAMA AYARLARI VE HİSSE LİSTESİ ---
 
-# --- VERİ YÜKLEME VE ÖNBELLEKLEME (GÜNCELLENMİŞ VERSİYON) ---
-@st.cache_data
-def load_nasdaq_tickers():
-    """NASDAQ hisse senedi listesini doğrudan internetten yükler ve önbelleğe alır."""
-    url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
-    try:
-        df = pd.read_csv(url)
-        # Sütun isimlerinde boşluk varsa temizle
-        df.rename(columns={'Company Name': 'Company_Name'}, inplace=True)
-        # Kullanıcı dostu bir görüntü için Sembol ve Şirket Adını birleştir
-        df['display_name'] = df['Symbol'] + ' - ' + df['Company_Name']
-        return df
-    except Exception as e:
-        st.error(f"Hisse senedi listesi yüklenirken bir hata oluştu: {e}")
-        return None
+st.set_page_config(layout="wide", page_title="NASDAQ Strateji Motoru")
+
+# Performans ve anlamlı sonuçlar için NASDAQ'ın en popüler hisselerinden oluşan bir liste.
+# Bu liste kolayca genişletilebilir.
+TICKER_LIST = [
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'AVGO', 'COST', 'PEP',
+    'ADBE', 'CSCO', 'TMUS', 'NFLX', 'AMD', 'INTC', 'CMCSA', 'INTU', 'AMGN', 'TXN',
+    'QCOM', 'HON', 'AMAT', 'ISRG', 'BKNG', 'SBUX', 'ADP', 'MDLZ', 'GILD', 'ADI',
+    'PYPL', 'REGN', 'VRTX', 'LRCX', 'PANW', 'MU', 'CSX', 'MAR', 'SNPS', 'ORLY',
+    'CDNS', 'KLAC', 'ASML', 'CTAS', 'EXC', 'FTNT', 'AEP', 'DXCM', 'MNST', 'MCHP',
+    'PCAR', 'PAYX', 'ROST', 'XEL', 'IDXX', 'WDAY', 'EA', 'KDP', 'FAST', 'BIIB',
+    'ODFL', 'CSGP', 'CPRT', 'DDOG', 'TEAM', 'ILMN', 'SIRI', 'CHTR', 'WBD', 'GEHC',
+    'BKR', 'CTSH', 'FANG', 'MRVL', 'ON', 'WBA', 'ZM', 'CRWD', 'DLTR', 'ANSS',
+    'VRSK', 'ENPH', 'MRNA', 'ALGN', 'CEG', 'DASH', 'SGEN', 'ZS', 'EBAY', 'LULU',
+    'JD', 'LCID', 'RIVN', 'AFRM', 'PLTR', 'SNOW', 'U', 'UBER', 'LYFT', 'HOOD',
+    'SOFI', 'ETSY', 'PTON', 'COIN', 'RBLX', 'DOCN', 'MDB', 'OKTA', 'SHOP', 'SQ',
+    'TWLO', 'ZI', 'NET', 'DOCS', 'ABNB', 'GTLB', 'PATH', 'BILL', 'DDOG'
+]
 
 # --- ANALİZ FONKSİYONLARI ---
 
-def analyze_trade_signals(data):
-    """
-    Hisse senedi verilerini analiz eder ve alım fırsatları ile genel trend üzerine yorumlar üretir.
-    """
-    signals = {'opportunities': [], 'trend': []}
-    
-    # Veri setinin yeterli uzunlukta olduğundan emin ol
-    if len(data) < 20: # En uzun periyotlu indikatörümüz 20 (Bollinger)
-        return signals # Yeterli veri yoksa boş sinyal listesi döndür
+@st.cache_data(ttl=3600) # Verileri 1 saat boyunca önbellekte tut
+def get_stock_data(ticker):
+    """Bir hissenin son 1 yıllık verisini çeker."""
+    return yf.Ticker(ticker).history(period="1y")
 
-    # Gerekli tüm teknik göstergeleri hesapla
+def analyze_opportunity(data):
+    """
+    Hisse senedi verilerini analiz eder ve alım fırsatı varsa detayları döndürür.
+    """
+    # Yeterli veri yoksa analizi atla
+    if data is None or len(data) < 50:
+        return None
+
+    # Teknik göstergeleri hesapla
     data.ta.rsi(length=14, append=True)
-    data.ta.bbands(length=20, append=True) # Bollinger Bands
+    data.ta.bbands(length=20, append=True)
     data.ta.macd(fast=12, slow=26, signal=9, append=True)
-    data.ta.sma(length=50, append=True)
     data.ta.sma(length=200, append=True)
-    
-    # En son (bugünün) verilerini al
+
     last_row = data.iloc[-1]
-    
-    # --- Alım Fırsatı Sinyalleri ---
-    
-    # 1. RSI Aşırı Satım Analizi (Güvenlik Kontrollü)
-    if 'RSI_14' in last_row.index and not pd.isna(last_row['RSI_14']):
-        if last_row['RSI_14'] < 35:
-            signals['opportunities'].append({
-                'title': 'Aşırı Satım Bölgesi (RSI)',
-                'description': f"RSI değeri ({last_row['RSI_14']:.2f}) kritik 35 seviyesinin altında. Bu durum, hissenin aşırı satıldığını ve bir tepki alımı için potansiyel oluşturduğunu gösterebilir.",
-                'sentiment': 'pozitif'
-            })
+    detected_signals = []
 
-    # 2. Bollinger Alt Bandı Analizi (Güvenlik Kontrollü)
-    if 'BBL_20_2.0' in last_row.index and not pd.isna(last_row['BBL_20_2.0']):
-        if last_row['Close'] <= last_row['BBL_20_2.0']:
-            signals['opportunities'].append({
-                'title': 'Bollinger Alt Bandı Teması',
-                'description': f"Fiyat ({last_row['Close']:.2f} $), Bollinger alt bandına ({last_row['BBL_20_2.0']:.2f} $) temas etti veya altına düştü. Bu, hissenin istatistiksel olarak 'ucuz' olduğunu ve bir sıçrama potansiyeli taşıdığını işaret edebilir.",
-                'sentiment': 'pozitif'
-            })
-        
-    # 3. MACD Alım Sinyali Analizi (Güvenlik Kontrollü)
+    # Sinyal 1: RSI Aşırı Satım
+    if 'RSI_14' in last_row and last_row['RSI_14'] < 35:
+        detected_signals.append("RSI Aşırı Satım")
+
+    # Sinyal 2: Bollinger Alt Bandı
+    if 'BBL_20_2.0' in last_row and last_row['Close'] <= last_row['BBL_20_2.0']:
+        detected_signals.append("Bollinger Alt Bandı")
+
+    # Sinyal 3: Yeni MACD Al Sinyali
     if 'MACD_12_26_9' in data.columns and 'MACDs_12_26_9' in data.columns:
-        recent_data = data.tail(3)
-        if len(recent_data) > 2: # En az 3 veri noktası olduğundan emin ol
-            if (recent_data['MACD_12_26_9'].iloc[-1] > recent_data['MACDs_12_26_9'].iloc[-1]) and \
-               (recent_data['MACD_12_26_9'].iloc[-2] < recent_data['MACDs_12_26_9'].iloc[-2]):
-                signals['opportunities'].append({
-                    'title': 'Yeni MACD Al Sinyali',
-                    'description': 'MACD çizgisi, sinyal çizgisini son 3 gün içinde yukarı yönlü kesti. Bu, yükseliş momentumunun başladığına dair güçlü bir teknik işarettir.',
-                    'sentiment': 'pozitif'
-                })
+        if len(data) > 2 and (data['MACD_12_26_9'].iloc[-1] > data['MACDs_12_26_9'].iloc[-1]) and \
+           (data['MACD_12_26_9'].iloc[-2] < data['MACDs_12_26_9'].iloc[-2]):
+            detected_signals.append("Yeni MACD Al Sinyali")
 
-    # --- Genel Trend Durumu ---
-    
-    # 1. Uzun Vadeli Trend (200 Günlük Ortalama) (Güvenlik Kontrollü)
-    if 'SMA_200' in last_row.index and not pd.isna(last_row['SMA_200']):
-        if last_row['Close'] > last_row['SMA_200']:
-            signals['trend'].append({
-                'title': 'Uzun Vadeli Yükseliş Trendi',
-                'description': f"Fiyat ({last_row['Close']:.2f} $), 200 günlük ortalamanın ({last_row['SMA_200']:.2f} $) üzerinde. Bu, hissenin ana trendinin YUKARI olduğunu gösterir.",
-                'sentiment': 'pozitif'
-            })
-        else:
-            signals['trend'].append({
-                'title': 'Uzun Vadeli Düşüş Trendi',
-                'description': f"Fiyat ({last_row['Close']:.2f} $), 200 günlük ortalamanın ({last_row['SMA_200']:.2f} $) altında. Bu, hissenin ana trendinin AŞAĞI olduğunu gösterir.",
-                'sentiment': 'negatif'
-            })
+    # Eğer en az bir alım sinyali varsa, detayları hesapla
+    if detected_signals:
+        # Uzun vadeli trendi kontrol et
+        long_term_trend = "Yükseliş" if 'SMA_200' in last_row and last_row['Close'] > last_row['SMA_200'] else "Düşüş"
         
-    # 2. Kısa/Orta Vadeli Trend (Golden/Death Cross) (Güvenlik Kontrollü)
-    if 'SMA_50' in last_row.index and 'SMA_200' in last_row.index and not pd.isna(last_row['SMA_50']) and not pd.isna(last_row['SMA_200']):
-        if last_row['SMA_50'] > last_row['SMA_200']:
-            signals['trend'].append({
-                'title': 'Golden Cross Aktif',
-                'description': '50 günlük ortalama, 200 günlük ortalamanın üzerinde. Bu, orta ve uzun vadede güçlü bir yükseliş sinyali olarak kabul edilir.',
-                'sentiment': 'pozitif'
-            })
-        else:
-            signals['trend'].append({
-                'title': 'Death Cross Aktif',
-                'description': '50 günlük ortalama, 200 günlük ortalamanın altında. Bu, orta ve uzun vadede bir zayıflık işareti olarak kabul edilir.',
-                'sentiment': 'negatif'
-            })
-            
-    return signals
+        # Hedef fiyatı belirle (Bollinger orta bandı)
+        target_price = last_row.get('BBM_20_2.0', 0)
+        current_price = last_row['Close']
 
-def get_news_and_sentiment(ticker_symbol):
-    """Hisse ile ilgili haberleri çeker ve duygu analizi yapar."""
-    try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
-        all_articles = newsapi.get_everything(q=ticker_symbol, from_param=start_date.strftime('%Y-%m-%d'), to=end_date.strftime('%Y-%m-%d'), language='en', sort_by='publishedAt', page_size=10)
-        analyzed_articles = []
-        for article in all_articles['articles']:
-            blob = TextBlob(article['title'])
-            sentiment = 'Nötr'
-            if blob.sentiment.polarity > 0.15: sentiment = 'Pozitif'
-            elif blob.sentiment.polarity < -0.15: sentiment = 'Negatif'
-            analyzed_articles.append({'title': article['title'], 'url': article['url'], 'sentiment': sentiment})
-        return analyzed_articles
-    except Exception:
-        return []
+        # Sadece hedef fiyatı mevcut fiyattan yüksek olan mantıklı fırsatları tut
+        if target_price > current_price:
+            potential_profit_pct = ((target_price - current_price) / current_price) * 100
+            
+            return {
+                "signal": ", ".join(detected_signals),
+                "current_price": current_price,
+                "target_price": target_price,
+                "potential_profit_pct": potential_profit_pct,
+                "long_term_trend": long_term_trend
+            }
+    return None
 
 # --- STREAMLIT ARAYÜZÜ ---
 
-st.set_page_config(layout="wide", page_title="NASDAQ Fırsat Tarayıcısı")
-st.title('🎯 NASDAQ Fırsat Tarayıcısı')
-st.caption('Yapay Zeka Destekli Alım Fırsatı Analizi')
+st.title('🚀 NASDAQ Strateji Motoru')
+st.caption('Otomatik Fırsat Tarama ve Sermaye Yönetimi Simülatörü')
 
-nasdaq_tickers = load_nasdaq_tickers()
+st.info("""
+**Bu Araç Nasıl Çalışır?**
+1.  NASDAQ'ın en popüler hisselerini sizin için otomatik olarak tarar.
+2.  Teknik göstergelere dayalı olarak **kısa vadeli alım fırsatları** arar (RSI, Bollinger Bantları vb.).
+3.  Bir fırsat bulduğunda, potansiyel **hedef fiyatı** ve **kâr oranını** hesaplar.
+4.  Girdiğiniz nakit miktarına göre size **kişiselleştirilmiş strateji önerileri** sunar.
+""", icon="ℹ️")
 
-if nasdaq_tickers is None:
-    st.error("NASDAQ hisse senedi listesi internetten yüklenemedi. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.")
-else:
-    selected_display_name = st.selectbox(
-        'Analiz edilecek hisseyi seçin veya yazarak arayın:',
-        nasdaq_tickers['display_name'],
-        index=None, # Başlangıçta boş olsun
-        placeholder="Bir hisse senedi seçin (Örn: AAPL - Apple Inc.)..."
-    )
+st.warning("""
+**Yasal Uyarı:** Bu araç yalnızca eğitim ve simülasyon amaçlıdır. Sunulan bilgiler yatırım tavsiyesi değildir. 
+Finansal piyasalarda işlem yapmak ciddi riskler içerir.
+""", icon="⚠️")
 
-    if selected_display_name:
-        ticker_symbol = selected_display_name.split(' - ')[0]
+# Kullanıcıdan sermaye girişi al
+user_cash = st.number_input(
+    'Strateji oluşturmak için ne kadar nakit ($) kullanmak istersiniz?',
+    min_value=100,
+    max_value=1000000,
+    value=1000,
+    step=100,
+    help="Bu miktar, potansiyel alım adetlerini ve kârı hesaplamak için kullanılacaktır."
+)
+
+if st.button('📈 Piyasayı Şimdi Tara!', type="primary"):
+    
+    opportunities = []
+    
+    progress_bar = st.progress(0, text="Tarama Başlatılıyor...")
+    
+    for i, ticker in enumerate(TICKER_LIST):
+        try:
+            stock_data = get_stock_data(ticker)
+            opportunity = analyze_opportunity(stock_data)
+            
+            if opportunity:
+                opportunity['ticker'] = ticker
+                opportunities.append(opportunity)
+                
+            progress_text = f"Taranıyor: {ticker} ({i+1}/{len(TICKER_LIST)}) - Fırsatlar Bulundu: {len(opportunities)}"
+            progress_bar.progress((i + 1) / len(TICKER_LIST), text=progress_text)
+            
+        except Exception as e:
+            # Hata veren hisseleri atla ve devam et
+            continue
+            
+    progress_bar.empty()
+
+    if not opportunities:
+        st.success("✅ Tarama Tamamlandı! Şu anda belirgin bir alım fırsatı tespit edilmedi.", icon="👍")
+    else:
+        st.success(f"✅ Tarama Tamamlandı! {len(opportunities)} adet potansiyel fırsat bulundu.", icon="🎯")
         
-        with st.spinner(f'{ticker_symbol} için derinlemesine analiz yapılıyor...'):
-            stock_data = yf.Ticker(ticker_symbol).history(period="2y") # Daha sağlam hesaplamalar için periyodu 2 yıla çıkardım
-
-            if stock_data.empty or len(stock_data) < 50: # En az 50 günlük veri olsun
-                st.error("Bu hisse için yeterli veri bulunamadı. Lütfen daha uzun bir geçmişi olan başka bir hisse seçin.")
-            else:
-                signals = analyze_trade_signals(stock_data)
-                articles = get_news_and_sentiment(ticker_symbol)
-                try:
-                    info = yf.Ticker(ticker_symbol).info
-                except:
-                    info = {} # .info bazen hata verebiliyor, buna karşı da koruma ekledim
-
-                st.header(f"{info.get('longName', ticker_symbol)} ({ticker_symbol}) Analizi")
-                
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Sektör", info.get('sector', 'N/A'))
-                col2.metric("Piyasa Değeri", f"{info.get('marketCap', 0) / 1e9:.2f} Milyar $" if info.get('marketCap') else 'N/A')
-                col3.metric("Son Fiyat", f"{stock_data['Close'].iloc[-1]:.2f} $", f"{stock_data['Close'].iloc[-1] - stock_data['Close'].iloc[-2]:.2f} $")
-
-                fig = go.Figure()
-                fig.add_trace(go.Candlestick(x=stock_data.index, open=stock_data['Open'], high=stock_data['High'], low=stock_data['Low'], close=stock_data['Close'], name='Fiyat'))
-                if 'BBU_20_2.0' in stock_data.columns:
-                    fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['BBU_20_2.0'], mode='lines', name='Bollinger Üst', line=dict(color='rgba(150, 150, 150, 0.5)')))
-                    fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['BBL_20_2.0'], mode='lines', name='Bollinger Alt', line=dict(color='rgba(150, 150, 150, 0.5)'), fill='tonexty', fillcolor='rgba(200, 200, 200, 0.1)'))
-                if 'SMA_50' in stock_data.columns:
-                    fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA_50'], mode='lines', name='50 Günlük MA', line=dict(color='orange')))
-                if 'SMA_200' in stock_data.columns:
-                    fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA_200'], mode='lines', name='200 Günlük MA', line=dict(color='purple')))
-                fig.update_layout(title='Fiyat Grafiği ve Teknik Göstergeler', xaxis_rangeslider_visible=False, height=500)
-                st.plotly_chart(fig, use_container_width=True)
-
-                st.divider()
-
-                col_opp, col_trend = st.columns(2)
-                with col_opp:
-                    st.subheader('💡 Potansiyel Alım Fırsatı Sinyalleri')
-                    if not signals['opportunities']:
-                        st.info("Şu anda belirgin bir kısa vadeli alım fırsatı sinyali tespit edilmedi.", icon="🤔")
-                    for signal in signals['opportunities']:
-                        st.success(f"**{signal['title']}:** {signal['description']}", icon="🔼")
-
-                with col_trend:
-                    st.subheader('🧭 Genel Trend Durumu')
-                    if not signals['trend']:
-                        st.warning("Genel trendi belirlemek için yeterli uzun vadeli veri bulunmuyor.", icon="⏳")
-                    for signal in signals['trend']:
-                        if signal['sentiment'] == 'pozitif':
-                            st.success(f"**{signal['title']}:** {signal['description']}", icon="✅")
-                        else:
-                            st.error(f"**{signal['title']}:** {signal['description']}", icon="⚠️")
-
-                st.divider()
-                
-                st.subheader('📰 "News AI" - Son Haberler ve Duygu Analizi')
-                if not articles:
-                    st.info(f"{ticker_symbol} için son 7 günde önemli bir haber bulunamadı.")
-                for article in articles:
-                    icon = "😐"
-                    if article['sentiment'] == 'Pozitif': icon = "🟢"
-                    elif article['sentiment'] == 'Negatif': icon = "🔴"
-                    st.markdown(f"{icon} [{article['title']}]({article['url']})")
+        # Sonuçları DataFrame'e çevir
+        df = pd.DataFrame(opportunities)
+        
+        # Sermayeye göre hesaplamalar yap
+        df['buyable_shares'] = (user_cash // df['current_price']).astype(int)
+        df['investment_cost'] = df['buyable_shares'] * df['current_price']
+        df['potential_profit_usd'] = (df['target_price'] - df['current_price']) * df['buyable_shares']
+        
+        # Sadece alınabilecek hisseleri göster
+        df_filtered = df[df['buyable_shares'] > 0].copy()
+        
+        # Gösterim için sütunları düzenle
+        df_filtered['current_price'] = df_filtered['current_price'].map('${:,.2f}'.format)
+        df_filtered['target_price'] = df_filtered['target_price'].map('${:,.2f}'.format)
+        df_filtered['potential_profit_pct'] = df_filtered['potential_profit_pct'].map('{:.2f}%'.format)
+        df_filtered['investment_cost'] = df_filtered['investment_cost'].map('${:,.2f}'.format)
+        df_filtered['potential_profit_usd'] = df_filtered['potential_profit_usd'].map('${:,.2f}'.format)
+        
+        st.subheader(f"Sizin için Oluşturulan Strateji Önerileri ({user_cash:,.0f} $ Nakit ile)")
+        
+        display_df = df_filtered[[
+            'ticker', 
+            'signal', 
+            'current_price', 
+            'target_price', 
+            'potential_profit_pct',
+            'buyable_shares',
+            'investment_cost',
+            'potential_profit_usd',
+            'long_term_trend'
+        ]].rename(columns={
+            'ticker': 'Hisse',
+            'signal': 'Tespit Edilen Sinyal',
+            'current_price': 'Mevcut Fiyat',
+            'target_price': 'Hedef Fiyat',
+            'potential_profit_pct': 'Potansiyel Kâr (%)',
+            'buyable_shares': 'Alınabilir Adet',
+            'investment_cost': 'Yatırım Maliyeti',
+            'potential_profit_usd': 'Potansiyel Kâr ($)',
+            'long_term_trend': 'Uzun Vadeli Trend'
+        }).set_index('Hisse')
+        
+        st.dataframe(display_df, use_container_width=True)
