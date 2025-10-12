@@ -12,11 +12,10 @@ import time
 st.set_page_config(layout="wide", page_title="AI Hisse Strateji Motoru")
 
 # NewsAPI Anahtarı - Lütfen kendi NewsAPI anahtarınızı kullanın.
-NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2"
+NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2" 
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 
 # --- VERİ VE ANALİZ FONKSİYONLARI ---
-
 @st.cache_data(ttl=3600)
 def load_all_tradable_stocks():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
@@ -29,16 +28,15 @@ def load_all_tradable_stocks():
         return df
     except Exception: return None
 
-# HIZ LİMİTİNE KARŞI KORUMALI VERİ ÇEKME FONKSİYONU
+# DÜZELTİLMİŞ - HIZ LİMİTİNE KARŞI KORUMALI VERİ ÇEKME FONKSİYONU
 def get_ticker_with_retry(ticker_symbol, retries=3, delay=60):
     for i in range(retries):
         try:
             ticker_obj = yf.Ticker(ticker_symbol)
-            # Hızlı bir test sorgusu ile ticker'ın geçerli olup olmadığını kontrol et
             if ticker_obj.history(period="1d").empty:
                 return None
             return ticker_obj
-        except (yf.YFRateLimitError, Exception) as e:
+        except Exception as e: # Genel Exception yakalamak daha güvenli
             st.warning(f"Yahoo Finance hız limitine takıldık veya bir hata oluştu. {delay} saniye bekleniyor... ({i+1}/{retries})")
             time.sleep(delay)
     st.error(f"{ticker_symbol} için veri çekme denemeleri başarısız oldu. Tarama devam ediyor.")
@@ -46,7 +44,7 @@ def get_ticker_with_retry(ticker_symbol, retries=3, delay=60):
 
 @st.cache_data(ttl=900)
 def get_stock_data(ticker, period="1y"):
-    try:
+    try: 
         ticker_obj = get_ticker_with_retry(ticker)
         if ticker_obj:
             return ticker_obj.history(period=period)
@@ -185,13 +183,11 @@ else:
                 df['Önerilen Opsiyon'] = df.apply(lambda row: f"${row.get('option_strike')} CALL ({datetime.strptime(row.get('option_expiry'), '%Y-%m-%d').strftime('%d %b')})" if pd.notna(row.get('option_strike')) else "N/A", axis=1)
                 st.subheader("AI Tarafından Belirlenen Yüksek Potansiyelli Fırsatlar")
                 st.dataframe(df, column_config={
-                    "ticker": st.column_config.TextColumn("Hisse"),
-                    "signals": st.column_config.TextColumn("Onaylanan Sinyaller", width="medium"),
-                    "score": st.column_config.TextColumn("Sinyal Gücü"),
+                    "ticker": "Hisse", "signals": "Onaylanan Sinyaller", "score": "Sinyal Gücü",
                     "current_price": st.column_config.NumberColumn("Mevcut Fiyat", format="$%.2f"),
                     "target_price": st.column_config.NumberColumn("Hedef Fiyat", format="$%.2f"),
                     "potential_profit_pct": st.column_config.NumberColumn("Potansiyel Kâr", format="%.2f%%"),
-                    "Önerilen Opsiyon": st.column_config.TextColumn("Öneri: Opsiyon"),
+                    "Önerilen Opsiyon": "Öneri: Opsiyon",
                     "option_price": st.column_config.NumberColumn("Opsiyon Fiyatı", format="$%.2f"),
                 }, use_container_width=True, hide_index=True,
                 column_order=("ticker", "signals", "score", "current_price", "target_price", "potential_profit_pct", "Önerilen Opsiyon", "option_price"))
@@ -231,12 +227,10 @@ else:
                         if 'ATRr_14' in last and pd.notna(last['ATRr_14']):
                             atr_value = last['ATRr_14']; stop_loss = current_price - (2 * atr_value); risk_amount = current_price - stop_loss
                             target_1 = current_price + (1.5 * risk_amount); target_2 = current_price + (2.5 * risk_amount)
-                            st.metric("Dinamik Stop-Loss", f"${stop_loss:,.2f}", help="Hissenin ortalama volatilitesine (2 x ATR) göre hesaplanan zarar durdurma seviyesi.")
-                            st.metric("Hedef 1 (1.5R Ödül)", f"${target_1:,.2f}", help="Aldığınız riskin 1.5 katı potansiyel kâr sunan hedef.")
-                            st.metric("Hedef 2 (2.5R Ödül)", f"${target_2:,.2f}", help="Aldığınız riskin 2.5 katı potansiyel kâr sunan hedef.")
-                            st.caption(f"Bu plan, hissenin son 14 gündeki ortalama {atr_value:,.2f}$'lık hareketine dayanmaktadır.")
-                        else:
-                            st.info("Volatiliteye dayalı bir plan oluşturmak için yeterli veri yok.")
+                            st.metric("Dinamik Stop-Loss", f"${stop_loss:,.2f}", help="Hissenin volatilitesine göre hesaplanan zarar durdurma seviyesi.")
+                            st.metric("Hedef 1 (1.5R Ödül)", f"${target_1:,.2f}", help="Aldığınız riskin 1.5 katı kâr hedefi.")
+                            st.metric("Hedef 2 (2.5R Ödül)", f"${target_2:,.2f}", help="Aldığınız riskin 2.5 katı kâr hedefi.")
+                        else: st.info("Volatiliteye dayalı plan için yeterli veri yok.")
                     st.divider()
 
                     st.markdown("#### 📈 İnteraktif Fiyat Grafiği")
@@ -251,35 +245,28 @@ else:
                         fig.update_layout(xaxis_rangeslider_visible=False, height=400, margin=dict(t=0, b=20, l=0, r=0)); st.plotly_chart(fig, use_container_width=True)
                         if show_rsi and 'RSI_14' in data.columns: fig_rsi = go.Figure(); fig_rsi.add_trace(go.Scatter(x=data.index, y=data['RSI_14'], mode='lines', name='RSI')); fig_rsi.add_hline(y=70, line_dash="dash", line_color="red"); fig_rsi.add_hline(y=30, line_dash="dash", line_color="green"); fig_rsi.update_layout(title_text="RSI", height=200, margin=dict(t=30, b=20, l=0, r=0)); st.plotly_chart(fig_rsi, use_container_width=True)
                         if show_macd and 'MACD_12_26_9' in data.columns: fig_macd = go.Figure(); fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD_12_26_9'], mode='lines', name='MACD', line_color='blue')); fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACDs_12_26_9'], mode='lines', name='Sinyal', line_color='orange')); fig_macd.add_bar(x=data.index, y=data['MACDh_12_26_9'], name='Histogram'); fig_macd.update_layout(title_text="MACD", height=200, margin=dict(t=30, b=20, l=0, r=0)); st.plotly_chart(fig_macd, use_container_width=True)
-
+                    
                     st.divider()
-                    # ... Diğer analiz bölümleri (Finansal Karne, Haberler vs. buraya gelecek)
+                    # ... Diğer analiz bölümleri...
 
     # --- SEKME 3: PORTFÖY STRATEJİSTİ (TAM VE ÇALIŞAN) ---
     with tab3:
         st.header("Kişisel Portföyünüz İçin AI Destekli Stratejiler")
-        if 'portfolio' not in st.session_state:
-            st.session_state.portfolio = pd.DataFrame(columns=["Hisse", "Adet", "Maliyet"])
-
+        if 'portfolio' not in st.session_state: st.session_state.portfolio = pd.DataFrame(columns=["Hisse", "Adet", "Maliyet"])
         with st.expander(" Portföyünüze Yeni Pozisyon Ekleyin"):
             col1, col2, col3, col4 = st.columns([2,1,1,1])
-            with col1:
-                ticker_to_add = st.text_input("Hisse Sembolü", "", key="add_ticker").upper()
-            with col2:
-                quantity_to_add = st.number_input("Adet", min_value=0.01, step=0.01, format="%.2f", key="add_qty")
-            with col3:
-                cost_to_add = st.number_input("Ortalama Maliyet ($)", min_value=0.01, step=0.01, format="%.2f", key="add_cost")
+            with col1: ticker_to_add = st.text_input("Hisse Sembolü", "", key="add_ticker").upper()
+            with col2: quantity_to_add = st.number_input("Adet", min_value=0.01, step=0.01, format="%.2f", key="add_qty")
+            with col3: cost_to_add = st.number_input("Ortalama Maliyet ($)", min_value=0.01, step=0.01, format="%.2f", key="add_cost")
             with col4:
-                st.write(""); st.write("") # Boşluk
+                st.write(""); st.write("")
                 if st.button("Ekle", use_container_width=True, key="add_button"):
                     if ticker_to_add and quantity_to_add > 0:
                         new_pos = pd.DataFrame([{"Hisse": ticker_to_add, "Adet": quantity_to_add, "Maliyet": cost_to_add}])
                         st.session_state.portfolio = pd.concat([st.session_state.portfolio, new_pos], ignore_index=True)
                         st.success(f"{ticker_to_add} portföyünüze eklendi!")
                     else: st.warning("Lütfen tüm alanları doldurun.")
-        
         st.divider()
-
         if not st.session_state.portfolio.empty:
             if st.button("🧠 Portföyüm İçin Strateji Oluştur!", type="primary", use_container_width=True):
                 with st.spinner("AI stratejistiniz portföyünüzü ve piyasayı analiz ediyor..."):
@@ -322,8 +309,7 @@ else:
                     st.markdown("##### Pozisyon Bazında Strateji Önerileri")
                     results_df = pd.DataFrame(results)
                     st.dataframe(results_df, use_container_width=True, hide_index=True, column_config={
-                        "Hisse": st.column_config.TextColumn("Hisse"),
-                        "Anlık Değer": st.column_config.NumberColumn("Anlık Değer", format="$%.2f"),
+                        "Hisse": "Hisse", "Anlık Değer": st.column_config.NumberColumn("Anlık Değer", format="$%.2f"),
                         "Kâr/Zarar ($)": st.column_config.NumberColumn("Kâr/Zarar ($)", format="$%.2f"),
                         "Kâr/Zarar (%)": st.column_config.NumberColumn("Kâr/Zarar (%)", format="%.2f%%"),
                         "AI Strateji Önerisi": st.column_config.TextColumn("AI Strateji Önerisi", width="large"),
