@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import plotly.graph_objects as go # <--- MISSING LINE ADDED HERE
 
 # --- UYGULAMA AYARLARI ---
 st.set_page_config(layout="wide", page_title="NASDAQ Kapsamlı Tarayıcı")
