@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-import plotly.graph_objects as go # <--- MISSING LINE ADDED HERE
+import plotly.graph_objects as go
 
 # --- UYGULAMA AYARLARI ---
 st.set_page_config(layout="wide", page_title="NASDAQ Kapsamlı Tarayıcı")
@@ -15,8 +15,8 @@ def load_full_nasdaq_list():
     url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
     try:
         df = pd.read_csv(url)
-        # Bazen sembollerde '$' gibi istenmeyen karakterler olabiliyor, bunları temizleyelim.
-        df = df[~df['Symbol'].str.contains('\$')]
+        # HATALI FİLTRE SATIRI BURADAN KALDIRILDI!
+        # Artık hiçbir hisse yanlışlıkla elenmeyecek.
         df['display_name'] = df['Symbol'] + ' - ' + df['Company Name']
         return df
     except Exception:
