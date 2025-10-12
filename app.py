@@ -10,14 +10,15 @@ from textblob import TextBlob
 # --- UYGULAMA AYARLARI ---
 st.set_page_config(layout="wide", page_title="AI Hisse Strateji Motoru")
 
-# NewsAPI Anahtarı - Güvenli bir şekilde ekleyin
-# Lütfen kendi NewsAPI anahtarınızı kullanın.
-NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2" 
+# NewsAPI Anahtarı - Lütfen kendi NewsAPI anahtarınızı kullanın.
+NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2"
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 
 # --- VERİ VE ANALİZ FONKSİYONLARI ---
+
 @st.cache_data(ttl=3600)
 def load_all_tradable_stocks():
+    """Robinhood'da işlem görmeye uygun tüm hisselerin listesini internetten yükler."""
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
     try:
         df = pd.read_csv(url)
@@ -30,10 +31,12 @@ def load_all_tradable_stocks():
 
 @st.cache_data(ttl=900)
 def get_stock_data(ticker, period="1y"):
+    """Bir hissenin verisini çeker."""
     try: return yf.Ticker(ticker).history(period=period)
     except Exception: return pd.DataFrame()
 
 def analyze_for_ai_screener(data):
+    """Tarayıcı için "AI" puanlama sistemi ile analiz yapar."""
     if data is None or len(data) < 200: return None
     data.ta.rsi(length=14, append=True); data.ta.bbands(length=20, append=True); data.ta.macd(fast=12, slow=26, signal=9, append=True); data.ta.sma(length=200, append=True)
     last = data.iloc[-1]
@@ -49,6 +52,7 @@ def analyze_for_ai_screener(data):
     return None
 
 def recommend_option(options_df):
+    """Verilen opsiyon listesini analiz ederek en uygun kontratı önerir."""
     if options_df is None or options_df.empty: return None
     required_cols = ['delta', 'theta', 'volume', 'openInterest', 'strike', 'lastPrice']
     if not all(col in options_df.columns for col in required_cols): return None
@@ -59,6 +63,7 @@ def recommend_option(options_df):
     return best_option
 
 def get_detailed_analysis(data):
+    """Tekli hisse analizi için tüm göstergeleri detaylı olarak yorumlar."""
     if data is None or len(data) < 50: return {}, None
     data.ta.rsi(length=14, append=True); data.ta.bbands(length=20, append=True); data.ta.macd(fast=12, slow=26, signal=9, append=True); data.ta.sma(length=50, append=True); data.ta.sma(length=200, append=True)
     last = data.iloc[-1]
@@ -78,6 +83,7 @@ def get_detailed_analysis(data):
 
 @st.cache_data(ttl=1800)
 def get_market_health():
+    """Genel piyasa sağlığını S&P 500'e göre ölçer."""
     try:
         spy_data = yf.Ticker("SPY").history(period="3mo")
         spy_data.ta.sma(length=50, append=True)
@@ -91,6 +97,7 @@ def get_market_health():
         return "Belirlenemedi", "Piyasa endeksi verisi alınamadı.", "error"
 
 def analyze_portfolio_position(position, market_health_status):
+    """Tek bir portföy pozisyonunu analiz eder ve akıllı strateji önerir."""
     try:
         data = get_stock_data(position['Hisse'])
         if data.empty: return "Veri Alınamadı"
@@ -115,6 +122,7 @@ def analyze_portfolio_position(position, market_health_status):
 
 @st.cache_data(ttl=3600)
 def get_news_for_stock(ticker):
+    """Bir hisse ile ilgili güncel haberleri ve duygu analizini çeker."""
     try:
         end_date = datetime.now()
         start_date = end_date - pd.Timedelta(days=7)
@@ -145,7 +153,7 @@ if full_stock_list is None:
 else:
     tab1, tab2, tab3 = st.tabs(["🚀 AI Fırsat Tarayıcısı", "🔍 Detaylı Hisse Analizi", "🧠 Portföy Stratejisti"])
 
-    # --- SEKME 1 ---
+    # --- SEKME 1: AI FIRSAT TARAYICISI ---
     with tab1:
         st.header("Yüksek Potansiyelli Hisse ve Opsiyon Fırsatlarını Keşfedin")
         st.warning("**ÇOK ÖNEMLİ:** Tarama süresi **15 ila 40 dakika** veya daha uzun olabilir.", icon="⏳")
@@ -186,7 +194,7 @@ else:
                 display_df = df[['ticker', 'signals', 'score', 'current_price', 'target_price', 'potential_profit_pct', 'Önerilen Opsiyon', 'Opsiyon Fiyatı']].rename(columns={'ticker': 'Hisse', 'signals': 'Onaylanan Sinyaller', 'score': 'Sinyal Gücü', 'current_price': 'Mevcut Fiyat', 'target_price': 'Hedef Fiyat', 'potential_profit_pct': 'Potansiyel Kâr (%)'}).set_index('Hisse')
                 st.dataframe(display_df, use_container_width=True)
 
-    # --- SEKME 2 (YENİ NESİL) ---
+    # --- SEKME 2: DETAYLI HİSSE ANALİZİ (YENİ NESİL) ---
     with tab2:
         st.header("İstediğiniz Hisseyi Derinlemesine İnceleyin")
         selected_display_name = st.selectbox('Analiz edilecek hisseyi seçin veya yazarak arayın:', full_stock_list['display_name'], index=None, placeholder="Piyasadaki herhangi bir hisseyi arayın...", key="single_stock_selector")
@@ -209,12 +217,12 @@ else:
                 col_chart, col_options = st.columns([4, 1])
                 with col_options:
                     st.write("Göstergeler:")
-                    show_bbands = st.checkbox("Bollinger Bantları", True)
-                    show_sma50 = st.checkbox("50 Günlük Ortalama", True)
-                    show_sma200 = st.checkbox("200 Günlük Ortalama", True)
+                    show_bbands = st.checkbox("Bollinger Bantları", True, key=f"bb_{selected_ticker}")
+                    show_sma50 = st.checkbox("50 Günlük Ortalama", True, key=f"sma50_{selected_ticker}")
+                    show_sma200 = st.checkbox("200 Günlük Ortalama", True, key=f"sma200_{selected_ticker}")
                     st.write("---")
-                    show_rsi = st.checkbox("RSI Grafiği", True)
-                    show_macd = st.checkbox("MACD Grafiği", True)
+                    show_rsi = st.checkbox("RSI Grafiği", True, key=f"rsi_{selected_ticker}")
+                    show_macd = st.checkbox("MACD Grafiği", False, key=f"macd_{selected_ticker}")
                 
                 with col_chart:
                     fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Fiyat')])
@@ -225,10 +233,8 @@ else:
                         fig.add_trace(go.Scatter(x=data.index, y=data['SMA_50'], mode='lines', line_color='orange', name='50 Günlük MA'))
                     if show_sma200:
                         fig.add_trace(go.Scatter(x=data.index, y=data['SMA_200'], mode='lines', line_color='purple', name='200 Günlük MA'))
-                    
                     fig.update_layout(xaxis_rangeslider_visible=False, height=400, margin=dict(t=0, b=20, l=0, r=0))
                     st.plotly_chart(fig, use_container_width=True)
-
                     if show_rsi:
                         fig_rsi = go.Figure()
                         fig_rsi.add_trace(go.Scatter(x=data.index, y=data['RSI_14'], mode='lines', name='RSI'))
@@ -248,28 +254,26 @@ else:
                 col_fin, col_analyst = st.columns(2)
                 with col_fin:
                     st.markdown("#### 📇 Finansal Karne")
-                    pe_ratio = info.get('trailingPE', 'N/A')
-                    revenue_growth = info.get('revenueGrowth', 'N/A')
-                    profit_margin = info.get('profitMargins', 'N/A')
-                    debt_equity = info.get('debtToEquity', 'N/A')
-
-                    if isinstance(pe_ratio, (int, float)): st.metric("F/K Oranı (Değerleme)", f"{pe_ratio:.2f}", help="Hissenin kazancına göre fiyatı. Düşük olması 'ucuz' olduğunu gösterebilir.")
-                    if isinstance(revenue_growth, (int, float)): st.metric("Yıllık Gelir Artışı", f"{revenue_growth:.2%}", help="Şirketin satışlarını ne kadar hızlı artırdığı.")
-                    if isinstance(profit_margin, (int, float)): st.metric("Net Kâr Marjı", f"{profit_margin:.2%}", help="Şirketin her 100$ satıştan ne kadar net kâr elde ettiği.")
-                    if isinstance(debt_equity, (int, float)): st.metric("Borç/Özkaynak Oranı", f"{debt_equity/100:.2f}", help="Şirketin finansal risk seviyesi. 1'in altı genellikle olumlu kabul edilir.")
+                    pe_ratio = info.get('trailingPE')
+                    revenue_growth = info.get('revenueGrowth')
+                    profit_margin = info.get('profitMargins')
+                    debt_equity = info.get('debtToEquity')
+                    if pe_ratio: st.metric("F/K Oranı (Değerleme)", f"{pe_ratio:.2f}", help="Hissenin kazancına göre fiyatı. Düşük olması 'ucuz' olduğunu gösterebilir.")
+                    if revenue_growth: st.metric("Yıllık Gelir Artışı", f"{revenue_growth:.2%}", help="Şirketin satışlarını ne kadar hızlı artırdığı.")
+                    if profit_margin: st.metric("Net Kâr Marjı", f"{profit_margin:.2%}", help="Şirketin her 100$ satıştan ne kadar net kâr elde ettiği.")
+                    if debt_equity: st.metric("Borç/Özkaynak Oranı", f"{debt_equity/100:.2f}", help="Şirketin finansal risk seviyesi. 1'in altı genellikle olumlu kabul edilir.")
 
                 with col_analyst:
                     st.markdown("#### 👨‍⚖️ Analist Not Defteri")
-                    reco_df = ticker_obj.recommendations
-                    if reco_df is not None and not reco_df.empty:
-                        reco_df = reco_df.tail(10) # Son 10 notu al
-                        reco_counts = reco_df['firm'].value_counts()
-                        st.metric("Analist Not Sayısı (Son Dönem)", f"{len(reco_df)}")
-                        # Bu kısım bazen hatalı veri döndürebildiği için daha basit bir gösterime geçildi
-                        latest_rating = reco_df['toGrade'].iloc[-1]
-                        st.success(f"En Son Not: **{latest_rating}**")
-                    else:
-                        st.info("Bu hisse için yeterli analist verisi bulunamadı.")
+                    try:
+                        reco_df = ticker_obj.recommendations
+                        if reco_df is not None and not reco_df.empty:
+                            latest_recos = reco_df.tail(5) # Son 5 not
+                            st.dataframe(latest_recos[['firm', 'toGrade', 'fromGrade']], use_container_width=True)
+                        else:
+                            st.info("Bu hisse için analist verisi bulunamadı.")
+                    except Exception:
+                        st.info("Bu hisse için analist verisi alınamadı.")
                 
                 # BÖLÜM 3: HABERLER VE OPSİYONLAR
                 st.divider()
@@ -291,11 +295,25 @@ else:
                         st.warning("Bu hisse için opsiyon vadesi bulunamadı.", icon="⚠️")
                     else:
                         try:
-                            # Opsiyon analizi kodu...
-                            pass
+                            exp_date = available_dates[0]
+                            options = ticker_obj.option_chain(exp_date)
+                            signals, _ = get_detailed_analysis(data)
+                            sentiment = 'bullish' if len(signals['bullish']) > len(signals['bearish']) else 'bearish'
+                            recommended_option = None
+                            if sentiment == 'bullish':
+                                recommended_option = recommend_option(options.calls)
+                                option_type = "ALIM (CALL)"
+                            else:
+                                recommended_option = recommend_option(options.puts)
+                                option_type = "SATIM (PUT)"
+                            if recommended_option is not None:
+                                st.success(f"**Teknik Analiz Önerisi:** Hissenin görünümü **{sentiment.capitalize()}** olduğu için, bir **{option_type}** opsiyonu düşünülebilir.", icon="💡")
+                                st.markdown(f"**Önerilen Kontrat:** ${recommended_option['strike']} {option_type}")
+                            else:
+                                st.info("Uygun bir opsiyon stratejisi bulunamadı.", icon="🤔")
                         except Exception:
                              st.warning("Opsiyon verisi alınamadı.", icon="⚠️")
-
+    
     # --- SEKME 3 ---
     with tab3:
         st.header("Kişisel Portföyünüz İçin AI Destekli Stratejiler")
@@ -306,14 +324,14 @@ else:
         with st.expander(" Portföyünüze Yeni Pozisyon Ekleyin"):
             col1, col2, col3, col4 = st.columns([2,1,1,1])
             with col1:
-                ticker_to_add = st.text_input("Hisse Sembolü", "").upper()
+                ticker_to_add = st.text_input("Hisse Sembolü", "", key="add_ticker").upper()
             with col2:
-                quantity_to_add = st.number_input("Adet", min_value=0.01, step=0.01, format="%.2f")
+                quantity_to_add = st.number_input("Adet", min_value=0.01, step=0.01, format="%.2f", key="add_qty")
             with col3:
-                cost_to_add = st.number_input("Ortalama Maliyet ($)", min_value=0.01, step=0.01, format="%.2f")
+                cost_to_add = st.number_input("Ortalama Maliyet ($)", min_value=0.01, step=0.01, format="%.2f", key="add_cost")
             with col4:
                 st.write("") 
-                if st.button("Ekle", use_container_width=True):
+                if st.button("Ekle", use_container_width=True, key="add_button"):
                     if ticker_to_add and quantity_to_add > 0:
                         new_pos = pd.DataFrame([{"Hisse": ticker_to_add, "Adet": quantity_to_add, "Maliyet": cost_to_add}])
                         st.session_state.portfolio = pd.concat([st.session_state.portfolio, new_pos], ignore_index=True)
