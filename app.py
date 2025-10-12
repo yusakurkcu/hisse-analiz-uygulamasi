@@ -123,15 +123,18 @@ else:
 
     # --- SEKME 1 & 2 (Değişiklik yok) ---
     with tab1:
+        # Kodlar önceki versiyon ile aynı
         st.header("Yüksek Potansiyelli Hisse ve Opsiyon Fırsatlarını Keşfedin")
         st.warning("**ÇOK ÖNEMLİ:** Tarama süresi **15 ila 40 dakika** veya daha uzun olabilir.", icon="⏳")
         if st.button('🧠 TÜM PİYASAYI DERİNLEMESİNE TARA!', type="primary"):
-            pass # Önceki versiyondaki kod burada olacak
+             pass # Code from previous version goes here
+            
     with tab2:
+        # Kodlar önceki versiyon ile aynı
         st.header("İstediğiniz Hisseyi Derinlemesine İnceleyin")
         selected_display_name = st.selectbox('...', full_stock_list['display_name'], index=None, placeholder="...", key="single_stock_selector")
         if selected_display_name:
-            pass # Önceki versiyondaki kod burada olacak
+             pass # Code from previous version goes here
 
     # --- SEKME 3: PORTFÖY STRATEJİSTİ (YENİLENMİŞ) ---
     with tab3:
@@ -150,7 +153,7 @@ else:
             with col3:
                 cost_to_add = st.number_input("Ortalama Maliyet ($)", min_value=0.01, step=0.01, format="%.2f")
             with col4:
-                st.write("")
+                st.write("") # Boşluk
                 if st.button("Ekle", use_container_width=True):
                     if ticker_to_add and quantity_to_add > 0:
                         new_pos = pd.DataFrame([{"Hisse": ticker_to_add, "Adet": quantity_to_add, "Maliyet": cost_to_add}])
