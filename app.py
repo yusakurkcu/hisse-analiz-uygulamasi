@@ -5,21 +5,29 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 
 # --- UYGULAMA AYARLARI ---
-st.set_page_config(layout="wide", page_title="NASDAQ Kapsamlı Tarayıcı")
+st.set_page_config(layout="wide", page_title="Hisse Senedi Fırsat Motoru")
 
 # --- VERİ VE ANALİZ FONKSİYONLARI ---
 
 @st.cache_data(ttl=3600) # Hisse listesini 1 saat önbellekte tut
-def load_full_nasdaq_list():
-    """NASDAQ'daki tüm hisselerin tam listesini internetten yükler."""
-    url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
+def load_all_tradable_stocks():
+    """
+    Robinhood'da işlem görmeye uygun tüm hisselerin listesini internetten yükler.
+    Bu liste hem NASDAQ hem de NYSE gibi borsaları içerir.
+    """
+    # Topluluk tarafından derlenen ve güncel tutulan bir veri kaynağı kullanıyoruz.
+    url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
     try:
         df = pd.read_csv(url)
-        # HATALI FİLTRE SATIRI BURADAN KALDIRILDI!
-        # Artık hiçbir hisse yanlışlıkla elenmeyecek.
-        df['display_name'] = df['Symbol'] + ' - ' + df['Company Name']
+        # Sütun isimlerini standart hale getirelim
+        df.rename(columns={'Company Name': 'Company_Name', 'Symbol': 'Symbol'}, inplace=True)
+        # Bazen aynı hisse farklı isimlerle listelenebiliyor, tekilleştirelim.
+        df.drop_duplicates(subset=['Symbol'], keep='first', inplace=True)
+        df.sort_values(by='Symbol', inplace=True)
+        df['display_name'] = df['Symbol'] + ' - ' + df['Company_Name']
         return df
-    except Exception:
+    except Exception as e:
+        st.error(f"Hisse senedi listesi yüklenirken bir hata oluştu: {e}")
         return None
 
 @st.cache_data(ttl=900) # Her bir hisse verisini 15 dakika önbellekte tut
@@ -77,27 +85,23 @@ def get_detailed_analysis(data):
     return signals
 
 # --- ANA ARAYÜZ ---
-st.title('📈 NASDAQ Kapsamlı Analiz Motoru')
+st.title('📈 ABD Hisse Piyasası Fırsat Motoru')
 st.caption('Otomatik Fırsat Tarama ve Detaylı Hisse Analizi Bir Arada')
 st.warning("Bu araç yalnızca eğitim amaçlıdır ve yatırım tavsiyesi değildir. Finansal piyasalar risk içerir.", icon="⚠️")
 
-full_nasdaq_list = load_full_nasdaq_list()
+full_stock_list = load_all_tradable_stocks()
 
-if full_nasdaq_list is None:
-    st.error("NASDAQ hisse listesi yüklenemedi. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyin.")
+if full_stock_list is None:
+    st.error("Hisse senedi listesi yüklenemedi. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyin.")
 else:
-    tab1, tab2 = st.tabs(["🚀 Tam Kapsamlı Fırsat Tarayıcısı", "🔍 Tekli Hisse Analizi"])
+    tab1, tab2 = st.tabs(["🚀 Kapsamlı Fırsat Tarayıcısı", "🔍 Tekli Hisse Analizi"])
 
     # --- SEKME 1: OTOMATİK TARAYICI ---
     with tab1:
-        st.header("NASDAQ'taki Tüm Hisseleri Fırsatlar İçin Tarayın")
+        st.header("Tüm Piyasayı Fırsatlar İçin Tarayın")
         
         st.warning(
-            """
-            **LÜTFEN DİKKAT:** Bu işlem NASDAQ'daki **binlerce** hissenin tamamını analiz edecektir. 
-            Taramanın tamamlanması **5 ila 20 dakika** sürebilir. 
-            Lütfen işlem bitene kadar bu sekmeyi kapatmayın.
-            """, 
+            "**LÜTFEN DİKKAT:** Bu işlem **binlerce** hisseyi analiz edecektir. Taramanın tamamlanması **5 ila 20 dakika** sürebilir. Lütfen işlem bitene kadar bu sekmeyi kapatmayın.", 
             icon="⏳"
         )
         
@@ -105,7 +109,7 @@ else:
         
         if st.button('🚀 TÜM PİYASAYI ŞİMDİ TARA!', type="primary"):
             opportunities = []
-            ticker_symbols = full_nasdaq_list['Symbol'].tolist()
+            ticker_symbols = full_stock_list['Symbol'].tolist()
             total_tickers = len(ticker_symbols)
             
             progress_bar = st.progress(0, text="Tarama Başlatılıyor...")
@@ -148,9 +152,9 @@ else:
         
         selected_display_name = st.selectbox(
             'Analiz edilecek hisseyi seçin veya yazarak arayın:',
-            full_nasdaq_list['display_name'],
+            full_stock_list['display_name'],
             index=None,
-            placeholder="NASDAQ'taki herhangi bir hisseyi arayın..."
+            placeholder="Piyasadaki herhangi bir hisseyi arayın..."
         )
 
         if selected_display_name:
