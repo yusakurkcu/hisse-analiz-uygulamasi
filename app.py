@@ -4,44 +4,30 @@ import pandas as pd
 import pandas_ta as ta
 
 # --- UYGULAMA AYARLARI ---
-st.set_page_config(layout="wide", page_title="NASDAQ Hibrit Analiz Motoru")
-
-# Tarayıcı için kullanılacak kısa ve hızlı liste
-FAST_TICKER_LIST = sorted([
-    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'AVGO', 'COST', 'PEP',
-    'ADBE', 'CSCO', 'TMUS', 'NFLX', 'AMD', 'INTC', 'CMCSA', 'INTU', 'AMGN', 'TXN',
-    'QCOM', 'HON', 'AMAT', 'ISRG', 'BKNG', 'SBUX', 'ADP', 'MDLZ', 'GILD', 'ADI',
-    'PYPL', 'REGN', 'VRTX', 'LRCX', 'PANW', 'MU', 'CSX', 'MAR', 'SNPS', 'ORLY',
-    'CDNS', 'KLAC', 'ASML', 'CTAS', 'EXC', 'FTNT', 'AEP', 'DXCM', 'MNST', 'MCHP',
-    'PCAR', 'PAYX', 'ROST', 'XEL', 'IDXX', 'WDAY', 'EA', 'KDP', 'FAST', 'BIIB',
-    'ODFL', 'CSGP', 'CPRT', 'DDOG', 'TEAM', 'ILMN', 'SIRI', 'CHTR', 'WBD', 'GEHC',
-    'BKR', 'CTSH', 'FANG', 'MRVL', 'ON', 'WBA', 'ZM', 'CRWD', 'DLTR', 'ANSS',
-    'VRSK', 'ENPH', 'MRNA', 'ALGN', 'CEG', 'DASH', 'ZS', 'EBAY', 'LULU',
-    'JD', 'LCID', 'RIVN', 'AFRM', 'PLTR', 'SNOW', 'U', 'UBER', 'LYFT', 'HOOD',
-    'SOFI', 'ETSY', 'COIN', 'RBLX', 'DOCN', 'MDB', 'OKTA', 'SHOP', 'SQ',
-    'TWLO', 'ZI', 'NET', 'DOCS', 'ABNB', 'GTLB', 'PATH', 'BILL'
-])
+st.set_page_config(layout="wide", page_title="NASDAQ Kapsamlı Tarayıcı")
 
 # --- VERİ VE ANALİZ FONKSİYONLARI ---
 
-@st.cache_data(ttl=900) # Verileri 15 dakika önbellekte tut
+@st.cache_data(ttl=3600) # Hisse listesini 1 saat önbellekte tut
+def load_full_nasdaq_list():
+    """NASDAQ'daki tüm hisselerin tam listesini internetten yükler."""
+    url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
+    try:
+        df = pd.read_csv(url)
+        # Bazen sembollerde '$' gibi istenmeyen karakterler olabiliyor, bunları temizleyelim.
+        df = df[~df['Symbol'].str.contains('\$')]
+        df['display_name'] = df['Symbol'] + ' - ' + df['Company Name']
+        return df
+    except Exception:
+        return None
+
+@st.cache_data(ttl=900) # Her bir hisse verisini 15 dakika önbellekte tut
 def get_stock_data(ticker):
     """Bir hissenin son 1 yıllık verisini çeker."""
     try:
         return yf.Ticker(ticker).history(period="1y")
     except Exception:
         return pd.DataFrame()
-
-@st.cache_data
-def load_full_nasdaq_list():
-    """NASDAQ'daki tüm hisselerin tam listesini internetten yükler."""
-    url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
-    try:
-        df = pd.read_csv(url)
-        df['display_name'] = df['Symbol'] + ' - ' + df['Company Name']
-        return df
-    except Exception:
-        return None
 
 def analyze_for_screener(data):
     """Tarayıcı için hisse senedi verilerini analiz eder."""
@@ -90,57 +76,75 @@ def get_detailed_analysis(data):
     return signals
 
 # --- ANA ARAYÜZ ---
-st.title('📈 NASDAQ Hibrit Analiz Motoru')
+st.title('📈 NASDAQ Kapsamlı Analiz Motoru')
 st.caption('Otomatik Fırsat Tarama ve Detaylı Hisse Analizi Bir Arada')
 st.warning("Bu araç yalnızca eğitim amaçlıdır ve yatırım tavsiyesi değildir. Finansal piyasalar risk içerir.", icon="⚠️")
 
-# Sekmeli yapı
-tab1, tab2 = st.tabs(["🚀 Otomatik Fırsat Tarayıcısı", "🔍 Tekli Hisse Analizi"])
+full_nasdaq_list = load_full_nasdaq_list()
 
-# --- SEKME 1: OTOMATİK TARAYICI ---
-with tab1:
-    st.header("Piyasadaki Potansiyel Fırsatları Keşfedin")
-    user_cash = st.number_input('Strateji için ne kadar nakit ($) kullanmak istersiniz?', min_value=100, max_value=1000000, value=1000, step=100, key='screener_cash_input')
-    if st.button('📈 Piyasayı Şimdi Tara!', type="primary"):
-        opportunities = []
-        progress_bar = st.progress(0, text="Tarama Başlatılıyor...")
-        total_tickers = len(FAST_TICKER_LIST)
-        for i, ticker in enumerate(FAST_TICKER_LIST):
-            stock_data = get_stock_data(ticker)
-            opportunity = analyze_for_screener(stock_data)
-            if opportunity:
-                opportunity['ticker'] = ticker
-                opportunities.append(opportunity)
-            progress_text = f"Taranıyor: {ticker} ({i+1}/{total_tickers}) - Fırsatlar Bulundu: {len(opportunities)}"
-            progress_bar.progress((i + 1) / total_tickers, text=progress_text)
-        progress_bar.empty()
-        if not opportunities:
-            st.success("✅ Tarama Tamamlandı! Şu anda belirgin bir fırsat tespit edilmedi.", icon="👍")
-        else:
-            st.success(f"✅ Tarama Tamamlandı! {len(opportunities)} adet potansiyel fırsat bulundu.", icon="🎯")
-            df = pd.DataFrame(opportunities)
-            df['buyable_shares'] = (user_cash // df['current_price']).astype(int)
-            df['investment_cost'] = df['buyable_shares'] * df['current_price']
-            df['potential_profit_usd'] = (df['target_price'] - df['current_price']) * df['buyable_shares']
-            df_filtered = df[df['buyable_shares'] > 0].copy()
-            df_filtered['current_price'] = df_filtered['current_price'].map('${:,.2f}'.format)
-            df_filtered['target_price'] = df_filtered['target_price'].map('${:,.2f}'.format)
-            df_filtered['potential_profit_pct'] = df_filtered['potential_profit_pct'].map('{:.2f}%'.format)
-            df_filtered['investment_cost'] = df_filtered['investment_cost'].map('${:,.2f}'.format)
-            df_filtered['potential_profit_usd'] = df_filtered['potential_profit_usd'].map('${:,.2f}'.format)
-            st.subheader(f"Sizin için Oluşturulan Strateji Önerileri ({user_cash:,.0f} $ Nakit ile)")
-            display_df = df_filtered[['ticker', 'type', 'current_price', 'target_price', 'potential_profit_pct', 'buyable_shares', 'investment_cost', 'potential_profit_usd']].rename(columns={'ticker': 'Hisse', 'type': 'Fırsat Tipi', 'current_price': 'Mevcut Fiyat', 'target_price': 'Hedef Fiyat', 'potential_profit_pct': 'Potansiyel Kâr (%)', 'buyable_shares': 'Alınabilir Adet', 'investment_cost': 'Yatırım Maliyeti', 'potential_profit_usd': 'Potansiyel Kâr ($)'}).set_index('Hisse')
-            st.dataframe(display_df, use_container_width=True)
+if full_nasdaq_list is None:
+    st.error("NASDAQ hisse listesi yüklenemedi. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyin.")
+else:
+    tab1, tab2 = st.tabs(["🚀 Tam Kapsamlı Fırsat Tarayıcısı", "🔍 Tekli Hisse Analizi"])
 
-# --- SEKME 2: TEKLİ HİSSE ANALİZİ ---
-with tab2:
-    st.header("İstediğiniz Hisseyi Derinlemesine İnceleyin")
-    
-    full_nasdaq_list = load_full_nasdaq_list()
+    # --- SEKME 1: OTOMATİK TARAYICI ---
+    with tab1:
+        st.header("NASDAQ'taki Tüm Hisseleri Fırsatlar İçin Tarayın")
+        
+        st.warning(
+            """
+            **LÜTFEN DİKKAT:** Bu işlem NASDAQ'daki **binlerce** hissenin tamamını analiz edecektir. 
+            Taramanın tamamlanması **5 ila 20 dakika** sürebilir. 
+            Lütfen işlem bitene kadar bu sekmeyi kapatmayın.
+            """, 
+            icon="⏳"
+        )
+        
+        user_cash = st.number_input('Strateji için ne kadar nakit ($) kullanmak istersiniz?', min_value=100, max_value=1000000, value=1000, step=100, key='screener_cash_input')
+        
+        if st.button('🚀 TÜM PİYASAYI ŞİMDİ TARA!', type="primary"):
+            opportunities = []
+            ticker_symbols = full_nasdaq_list['Symbol'].tolist()
+            total_tickers = len(ticker_symbols)
+            
+            progress_bar = st.progress(0, text="Tarama Başlatılıyor...")
+            
+            for i, ticker in enumerate(ticker_symbols):
+                stock_data = get_stock_data(ticker)
+                opportunity = analyze_for_screener(stock_data)
+                if opportunity:
+                    opportunity['ticker'] = ticker
+                    opportunities.append(opportunity)
+                
+                progress_text = f"Taranıyor: {ticker} ({i+1}/{total_tickers}) - Fırsatlar Bulundu: {len(opportunities)}"
+                progress_bar.progress((i + 1) / total_tickers, text=progress_text)
+            
+            progress_bar.empty()
 
-    if full_nasdaq_list is None:
-        st.error("NASDAQ hisse listesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin.")
-    else:
+            if not opportunities:
+                st.success("✅ Tarama Tamamlandı! Şu anda belirgin bir fırsat tespit edilmedi.", icon="👍")
+            else:
+                st.success(f"✅ Tarama Tamamlandı! {len(opportunities)} adet potansiyel fırsat bulundu.", icon="🎯")
+                df = pd.DataFrame(opportunities)
+                df['buyable_shares'] = (user_cash // df['current_price']).astype(int)
+                df['investment_cost'] = df['buyable_shares'] * df['current_price']
+                df['potential_profit_usd'] = (df['target_price'] - df['current_price']) * df['buyable_shares']
+                df_filtered = df[df['buyable_shares'] > 0].copy()
+                
+                df_filtered['current_price'] = df_filtered['current_price'].map('${:,.2f}'.format)
+                df_filtered['target_price'] = df_filtered['target_price'].map('${:,.2f}'.format)
+                df_filtered['potential_profit_pct'] = df_filtered['potential_profit_pct'].map('{:.2f}%'.format)
+                df_filtered['investment_cost'] = df_filtered['investment_cost'].map('${:,.2f}'.format)
+                df_filtered['potential_profit_usd'] = df_filtered['potential_profit_usd'].map('${:,.2f}'.format)
+                
+                st.subheader(f"Sizin için Oluşturulan Strateji Önerileri ({user_cash:,.0f} $ Nakit ile)")
+                display_df = df_filtered[['ticker', 'type', 'current_price', 'target_price', 'potential_profit_pct', 'buyable_shares', 'investment_cost', 'potential_profit_usd']].rename(columns={'ticker': 'Hisse', 'type': 'Fırsat Tipi', 'current_price': 'Mevcut Fiyat', 'target_price': 'Hedef Fiyat', 'potential_profit_pct': 'Potansiyel Kâr (%)', 'buyable_shares': 'Alınabilir Adet', 'investment_cost': 'Yatırım Maliyeti', 'potential_profit_usd': 'Potansiyel Kâr ($)'}).set_index('Hisse')
+                st.dataframe(display_df, use_container_width=True)
+
+    # --- SEKME 2: TEKLİ HİSSE ANALİZİ ---
+    with tab2:
+        st.header("İstediğiniz Hisseyi Derinlemesine İnceleyin")
+        
         selected_display_name = st.selectbox(
             'Analiz edilecek hisseyi seçin veya yazarak arayın:',
             full_nasdaq_list['display_name'],
