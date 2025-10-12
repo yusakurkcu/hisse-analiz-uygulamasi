@@ -11,14 +11,12 @@ from textblob import TextBlob
 st.set_page_config(layout="wide", page_title="AI Hisse Strateji Motoru")
 
 # NewsAPI Anahtarı - Lütfen kendi NewsAPI anahtarınızı kullanın.
-NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2"
+NEWS_API_KEY = "b45712756c0a4d93827bd02ae10c43c2" 
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 
 # --- VERİ VE ANALİZ FONKSİYONLARI ---
-
 @st.cache_data(ttl=3600)
 def load_all_tradable_stocks():
-    """Robinhood'da işlem görmeye uygun tüm hisselerin listesini internetten yükler."""
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/main/data/nasdaq-listed-symbols.csv"
     try:
         df = pd.read_csv(url)
@@ -31,17 +29,15 @@ def load_all_tradable_stocks():
 
 @st.cache_data(ttl=900)
 def get_stock_data(ticker, period="1y"):
-    """Bir hissenin verisini çeker."""
     try: return yf.Ticker(ticker).history(period=period)
     except Exception: return pd.DataFrame()
 
 def analyze_for_ai_screener(data):
-    """Tarayıcı için "AI" puanlama sistemi ile analiz yapar."""
     if data is None or len(data) < 200: return None
     data.ta.rsi(length=14, append=True); data.ta.bbands(length=20, append=True); data.ta.macd(fast=12, slow=26, signal=9, append=True); data.ta.sma(length=200, append=True)
     last = data.iloc[-1]
     score = 0; signals = []
-    if last['Close'] > last['SMA_200']: score += 1; signals.append("Uzun Vadeli Trend Pozitif")
+    if 'SMA_200' in last and last['Close'] > last['SMA_200']: score += 1; signals.append("Uzun Vadeli Trend Pozitif")
     if 'RSI_14' in last and last['RSI_14'] < 35: score += 1; signals.append("RSI Aşırı Satım")
     if 'BBL_20_2.0' in last and last['Close'] <= last['BBL_20_2.0']: score += 1; signals.append("Bollinger Alt Bandı")
     if 'MACD_12_26_9' in data.columns and len(data) > 2 and (data['MACD_12_26_9'].iloc[-1] > data['MACDs_12_26_9'].iloc[-1]) and (data['MACD_12_26_9'].iloc[-2] < data['MACDs_12_26_9'].iloc[-2]): score += 1; signals.append("Yeni MACD Al Sinyali")
@@ -52,7 +48,6 @@ def analyze_for_ai_screener(data):
     return None
 
 def recommend_option(options_df):
-    """Verilen opsiyon listesini analiz ederek en uygun kontratı önerir."""
     if options_df is None or options_df.empty: return None
     required_cols = ['delta', 'theta', 'volume', 'openInterest', 'strike', 'lastPrice']
     if not all(col in options_df.columns for col in required_cols): return None
@@ -63,18 +58,18 @@ def recommend_option(options_df):
     return best_option
 
 def get_detailed_analysis(data):
-    """Tekli hisse analizi için tüm göstergeleri detaylı olarak yorumlar."""
-    if data is None or len(data) < 50: return {}, None
+    if data is None or len(data) < 1: return {}, None
+    # Calculate all possible indicators
     data.ta.rsi(length=14, append=True); data.ta.bbands(length=20, append=True); data.ta.macd(fast=12, slow=26, signal=9, append=True); data.ta.sma(length=50, append=True); data.ta.sma(length=200, append=True)
     last = data.iloc[-1]
     signals = {'bullish': [], 'bearish': []}
     if 'RSI_14' in last:
         if last['RSI_14'] < 30: signals['bullish'].append("RSI Aşırı Satım")
         elif last['RSI_14'] > 70: signals['bearish'].append("RSI Aşırı Alım")
-    if 'BBL_20_2.0' in last and last['Close'] <= last['BBL_20_2.0']: signals['bullish'].append("Bollinger Alt Bandı")
-    elif 'BBU_20_2.0' in last and last['Close'] >= last['BBU_20_2.0']: signals['bearish'].append("Bollinger Üst Bandı")
-    if 'MACD_12_26_9' in last and last['MACD_12_26_9'] > last['MACDs_12_26_9']: signals['bullish'].append("MACD Pozitif")
-    else: signals['bearish'].append("MACD Negatif")
+    if 'BBL_20_2.0' in last and 'Close' in last and last['Close'] <= last['BBL_20_2.0']: signals['bullish'].append("Bollinger Alt Bandı")
+    elif 'BBU_20_2.0' in last and 'Close' in last and last['Close'] >= last['BBU_20_2.0']: signals['bearish'].append("Bollinger Üst Bandı")
+    if 'MACD_12_26_9' in last and 'MACDs_12_26_9' in last and last['MACD_12_26_9'] > last['MACDs_12_26_9']: signals['bullish'].append("MACD Pozitif")
+    elif 'MACD_12_26_9' in last and 'MACDs_12_26_9' in last: signals['bearish'].append("MACD Negatif")
     if 'SMA_50' in last and 'SMA_200' in last and last['Close'] > last['SMA_50'] and last['Close'] > last['SMA_200']:
         signals['bullish'].append("Güçlü Yükseliş Trendi")
     elif 'SMA_50' in last and 'SMA_200' in last and last['Close'] < last['SMA_50'] and last['Close'] < last['SMA_200']:
@@ -83,7 +78,6 @@ def get_detailed_analysis(data):
 
 @st.cache_data(ttl=1800)
 def get_market_health():
-    """Genel piyasa sağlığını S&P 500'e göre ölçer."""
     try:
         spy_data = yf.Ticker("SPY").history(period="3mo")
         spy_data.ta.sma(length=50, append=True)
@@ -97,7 +91,6 @@ def get_market_health():
         return "Belirlenemedi", "Piyasa endeksi verisi alınamadı.", "error"
 
 def analyze_portfolio_position(position, market_health_status):
-    """Tek bir portföy pozisyonunu analiz eder ve akıllı strateji önerir."""
     try:
         data = get_stock_data(position['Hisse'])
         if data.empty: return "Veri Alınamadı"
@@ -122,7 +115,6 @@ def analyze_portfolio_position(position, market_health_status):
 
 @st.cache_data(ttl=3600)
 def get_news_for_stock(ticker):
-    """Bir hisse ile ilgili güncel haberleri ve duygu analizini çeker."""
     try:
         end_date = datetime.now()
         start_date = end_date - pd.Timedelta(days=7)
@@ -207,12 +199,14 @@ else:
             if data.empty:
                 st.error("Bu hisse için veri alınamadı.")
             else:
+                # Get analysis before plotting
+                signals, last = get_detailed_analysis(data)
+                
                 info = ticker_obj.info
                 st.subheader(f"{info.get('longName', selected_ticker)} ({selected_ticker})")
                 st.caption(f"{info.get('sector', 'N/A')} | {info.get('industry', 'N/A')} | {info.get('country', 'N/A')}")
                 st.divider()
 
-                # BÖLÜM 1: İNTERAKTİF GRAFİK
                 st.markdown("#### 📈 İnteraktif Fiyat Grafiği")
                 col_chart, col_options = st.columns([4, 1])
                 with col_options:
@@ -226,22 +220,26 @@ else:
                 
                 with col_chart:
                     fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Fiyat')])
-                    if show_bbands:
+                    
+                    # *** GÜVENLİK KONTROLLERİ BURAYA EKLENDİ ***
+                    if show_bbands and 'BBU_20_2.0' in data.columns:
                         fig.add_trace(go.Scatter(x=data.index, y=data['BBU_20_2.0'], mode='lines', line_color='rgba(150, 150, 150, 0.5)', name='Bollinger Üst'))
                         fig.add_trace(go.Scatter(x=data.index, y=data['BBL_20_2.0'], mode='lines', line_color='rgba(150, 150, 150, 0.5)', name='Bollinger Alt', fill='tonexty', fillcolor='rgba(200, 200, 200, 0.1)'))
-                    if show_sma50:
+                    if show_sma50 and 'SMA_50' in data.columns:
                         fig.add_trace(go.Scatter(x=data.index, y=data['SMA_50'], mode='lines', line_color='orange', name='50 Günlük MA'))
-                    if show_sma200:
+                    if show_sma200 and 'SMA_200' in data.columns:
                         fig.add_trace(go.Scatter(x=data.index, y=data['SMA_200'], mode='lines', line_color='purple', name='200 Günlük MA'))
+                    
                     fig.update_layout(xaxis_rangeslider_visible=False, height=400, margin=dict(t=0, b=20, l=0, r=0))
                     st.plotly_chart(fig, use_container_width=True)
-                    if show_rsi:
+
+                    if show_rsi and 'RSI_14' in data.columns:
                         fig_rsi = go.Figure()
                         fig_rsi.add_trace(go.Scatter(x=data.index, y=data['RSI_14'], mode='lines', name='RSI'))
                         fig_rsi.add_hline(y=70, line_dash="dash", line_color="red"); fig_rsi.add_hline(y=30, line_dash="dash", line_color="green")
                         fig_rsi.update_layout(title_text="RSI (Göreceli Güç Endeksi)", height=200, margin=dict(t=30, b=20, l=0, r=0))
                         st.plotly_chart(fig_rsi, use_container_width=True)
-                    if show_macd:
+                    if show_macd and 'MACD_12_26_9' in data.columns:
                         fig_macd = go.Figure()
                         fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD_12_26_9'], mode='lines', name='MACD', line_color='blue'))
                         fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACDs_12_26_9'], mode='lines', name='Sinyal', line_color='orange'))
@@ -249,33 +247,26 @@ else:
                         fig_macd.update_layout(title_text="MACD", height=200, margin=dict(t=30, b=20, l=0, r=0))
                         st.plotly_chart(fig_macd, use_container_width=True)
 
-                # BÖLÜM 2: FİNANSAL KARNE VE ANALİST GÖRÜŞÜ
                 st.divider()
                 col_fin, col_analyst = st.columns(2)
                 with col_fin:
                     st.markdown("#### 📇 Finansal Karne")
-                    pe_ratio = info.get('trailingPE')
-                    revenue_growth = info.get('revenueGrowth')
-                    profit_margin = info.get('profitMargins')
-                    debt_equity = info.get('debtToEquity')
-                    if pe_ratio: st.metric("F/K Oranı (Değerleme)", f"{pe_ratio:.2f}", help="Hissenin kazancına göre fiyatı. Düşük olması 'ucuz' olduğunu gösterebilir.")
+                    pe_ratio = info.get('trailingPE'); revenue_growth = info.get('revenueGrowth'); profit_margin = info.get('profitMargins'); debt_equity = info.get('debtToEquity')
+                    if pe_ratio: st.metric("F/K Oranı (Değerleme)", f"{pe_ratio:.2f}", help="Hissenin kazancına göre fiyatı.")
                     if revenue_growth: st.metric("Yıllık Gelir Artışı", f"{revenue_growth:.2%}", help="Şirketin satışlarını ne kadar hızlı artırdığı.")
                     if profit_margin: st.metric("Net Kâr Marjı", f"{profit_margin:.2%}", help="Şirketin her 100$ satıştan ne kadar net kâr elde ettiği.")
-                    if debt_equity: st.metric("Borç/Özkaynak Oranı", f"{debt_equity/100:.2f}", help="Şirketin finansal risk seviyesi. 1'in altı genellikle olumlu kabul edilir.")
+                    if debt_equity: st.metric("Borç/Özkaynak Oranı", f"{debt_equity/100:.2f}", help="Şirketin finansal risk seviyesi.")
 
                 with col_analyst:
                     st.markdown("#### 👨‍⚖️ Analist Not Defteri")
                     try:
                         reco_df = ticker_obj.recommendations
                         if reco_df is not None and not reco_df.empty:
-                            latest_recos = reco_df.tail(5) # Son 5 not
+                            latest_recos = reco_df.tail(5)
                             st.dataframe(latest_recos[['firm', 'toGrade', 'fromGrade']], use_container_width=True)
-                        else:
-                            st.info("Bu hisse için analist verisi bulunamadı.")
-                    except Exception:
-                        st.info("Bu hisse için analist verisi alınamadı.")
+                        else: st.info("Bu hisse için analist verisi bulunamadı.")
+                    except Exception: st.info("Bu hisse için analist verisi alınamadı.")
                 
-                # BÖLÜM 3: HABERLER VE OPSİYONLAR
                 st.divider()
                 col_news, col_opts = st.columns(2)
                 with col_news:
@@ -285,8 +276,7 @@ else:
                         for article in news:
                             icon = "🟢" if article['sentiment'] == 'Pozitif' else "🔴" if article['sentiment'] == 'Negatif' else "⚪️"
                             st.markdown(f"{icon} [{article['title']}]({article['url']})")
-                    else:
-                        st.info("Son 7 güne ait önemli bir haber bulunamadı.")
+                    else: st.info("Son 7 güne ait önemli bir haber bulunamadı.")
 
                 with col_opts:
                     st.markdown("#### 🧠 Akıllı Opsiyon Stratejisi")
@@ -295,26 +285,17 @@ else:
                         st.warning("Bu hisse için opsiyon vadesi bulunamadı.", icon="⚠️")
                     else:
                         try:
-                            exp_date = available_dates[0]
-                            options = ticker_obj.option_chain(exp_date)
-                            signals, _ = get_detailed_analysis(data)
+                            exp_date = available_dates[0]; options = ticker_obj.option_chain(exp_date)
                             sentiment = 'bullish' if len(signals['bullish']) > len(signals['bearish']) else 'bearish'
-                            recommended_option = None
-                            if sentiment == 'bullish':
-                                recommended_option = recommend_option(options.calls)
-                                option_type = "ALIM (CALL)"
-                            else:
-                                recommended_option = recommend_option(options.puts)
-                                option_type = "SATIM (PUT)"
+                            if sentiment == 'bullish': recommended_option = recommend_option(options.calls); option_type = "ALIM (CALL)"
+                            else: recommended_option = recommend_option(options.puts); option_type = "SATIM (PUT)"
                             if recommended_option is not None:
                                 st.success(f"**Teknik Analiz Önerisi:** Hissenin görünümü **{sentiment.capitalize()}** olduğu için, bir **{option_type}** opsiyonu düşünülebilir.", icon="💡")
                                 st.markdown(f"**Önerilen Kontrat:** ${recommended_option['strike']} {option_type}")
-                            else:
-                                st.info("Uygun bir opsiyon stratejisi bulunamadı.", icon="🤔")
-                        except Exception:
-                             st.warning("Opsiyon verisi alınamadı.", icon="⚠️")
-    
-    # --- SEKME 3 ---
+                            else: st.info("Uygun bir opsiyon stratejisi bulunamadı.", icon="🤔")
+                        except Exception: st.warning("Opsiyon verisi alınamadı.", icon="⚠️")
+
+    # --- SEKME 3: PORTFÖY STRATEJİSTİ ---
     with tab3:
         st.header("Kişisel Portföyünüz İçin AI Destekli Stratejiler")
         
@@ -344,24 +325,17 @@ else:
         if not st.session_state.portfolio.empty:
             if st.button("🧠 Portföyüm İçin Strateji Oluştur!", type="primary", use_container_width=True):
                 with st.spinner("AI stratejistiniz portföyünüzü ve piyasayı analiz ediyor..."):
-                    results = []
-                    sectors = {}
-                    total_value = 0
-                    total_cost = 0
-                    
+                    results = []; sectors = {}; total_value = 0; total_cost = 0
                     market_health, market_comment, market_status_type = get_market_health()
-
                     for index, position in st.session_state.portfolio.iterrows():
                         try:
                             ticker_info = yf.Ticker(position['Hisse']).info
                             current_price = ticker_info.get('currentPrice', yf.Ticker(position['Hisse']).history(period="1d")['Close'].iloc[-1])
-                            sector = ticker_info.get('sector', 'Diğer')
-                            value = position['Adet'] * current_price
+                            sector = ticker_info.get('sector', 'Diğer'); value = position['Adet'] * current_price
                             total_value += value
                             if sector in sectors: sectors[sector] += value
                             else: sectors[sector] = value
-                            cost = position['Adet'] * position['Maliyet']
-                            total_cost += cost
+                            cost = position['Adet'] * position['Maliyet']; total_cost += cost
                             profit_loss = value - cost
                             profit_loss_pct = (profit_loss / cost) * 100 if cost > 0 else 0
                             strategy = analyze_portfolio_position(position, market_health)
@@ -369,34 +343,27 @@ else:
                         except Exception:
                             results.append({"Hisse": position['Hisse'], "Anlık Değer": 0, "Kâr/Zarar ($)": 0, "Kâr/Zarar (%)": 0, "AI Strateji Önerisi": "Hisse verisi alınamadı."})
 
-                    st.markdown("---")
-                    st.subheader("Portföy Analizi ve Risk Değerlendirmesi")
-                    
+                    st.markdown("---"); st.subheader("Portföy Analizi ve Risk Değerlendirmesi")
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
                         total_pl = total_value - total_cost
                         total_pl_pct = (total_pl / total_cost) * 100 if total_cost > 0 else 0
                         st.metric("Toplam Portföy Değeri", f"${total_value:,.2f}", f"{total_pl:,.2f}$ ({total_pl_pct:.2f}%)")
-                        if market_status_type == "success":
-                            st.success(f"**Piyasa Sağlığı:** {market_health}", icon="📈")
-                        else:
-                            st.warning(f"**Piyasa Sağlığı:** {market_health}", icon="⚠️")
+                        if market_status_type == "success": st.success(f"**Piyasa Sağlığı:** {market_health}", icon="📈")
+                        else: st.warning(f"**Piyasa Sağlığı:** {market_health}", icon="⚠️")
                         st.caption(market_comment)
-
                     with col_m2:
                         if sectors:
                             sector_df = pd.DataFrame(list(sectors.items()), columns=['Sektör', 'Değer'])
                             fig = go.Figure(data=[go.Pie(labels=sector_df['Sektör'], values=sector_df['Değer'], hole=.4, textinfo='percent+label', pull=[0.05 if v == sector_df['Değer'].max() else 0 for v in sector_df['Değer']])])
-                            fig.update_layout(title_text='Sektörel Dağılım ve Risk Konsantrasyonu', showlegend=False, height=250, margin=dict(t=50, b=0, l=0, r=0))
+                            fig.update_layout(title_text='Sektörel Dağılım', showlegend=False, height=250, margin=dict(t=50, b=0, l=0, r=0))
                             st.plotly_chart(fig, use_container_width=True)
                     
                     st.markdown("##### Pozisyon Bazında Strateji Önerileri")
                     results_df = pd.DataFrame(results)
-                    
                     results_df['Anlık Değer'] = results_df['Anlık Değer'].map('${:,.2f}'.format)
                     results_df['Kâr/Zarar ($)'] = results_df['Kâr/Zarar ($)'].map('${:,.2f}'.format)
                     results_df['Kâr/Zarar (%)'] = results_df['Kâr/Zarar (%)'].map('{:.2f}%'.format)
-
                     st.dataframe(results_df.set_index("Hisse"), use_container_width=True)
         else:
             st.info("Strateji oluşturmak için lütfen yukarıdaki bölümden portföyünüze pozisyon ekleyin.")
