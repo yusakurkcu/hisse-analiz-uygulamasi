@@ -1,7 +1,7 @@
 streamlit
-yfinance
 pandas
-numpy
+yfinance
+pandas-ta
+newsapi-python
+textblob
 plotly
-py_vollib
-nltk
