@@ -69,7 +69,8 @@ def get_detailed_analysis(data):
         signals['bearish'].append("Güçlü Düşüş Trendi")
     return signals, last
 
-@st.cache_data(ttl=1800)
+# YENİ - GENEL PİYASA SAĞLIĞI FONKSİYONU
+@st.cache_data(ttl=1800) # 30 dakikada bir güncelle
 def get_market_health():
     try:
         spy_data = yf.Ticker("SPY").history(period="3mo")
@@ -83,6 +84,7 @@ def get_market_health():
     except Exception:
         return "Belirlenemedi", "Piyasa endeksi verisi alınamadı.", "error"
 
+# GELİŞTİRİLMİŞ - PORTFÖY POZİSYON ANALİZİ
 def analyze_portfolio_position(position, market_health_status):
     try:
         data = get_stock_data(position['Hisse'])
@@ -93,6 +95,7 @@ def analyze_portfolio_position(position, market_health_status):
         is_bullish_trend = "Güçlü Yükseliş Trendi" in signals['bullish']
         is_bearish_trend = "Güçlü Düşüş Trendi" in signals['bearish']
         
+        # Dinamik Strateji Motoru
         if profit_pct > 25 and "RSI Aşırı Alım" in signals['bearish']:
             return f"📈 **Kâr Almayı Değerlendir:** %{profit_pct:.2f} kârda ve hisse teknik olarak 'pahalı' görünüyor. Kârın bir kısmını realize etmek düşünülebilir."
         elif profit_pct < -15 and is_bearish_trend:
@@ -162,7 +165,7 @@ else:
                 display_df = df[['ticker', 'signals', 'score', 'current_price', 'target_price', 'potential_profit_pct', 'Önerilen Opsiyon', 'Opsiyon Fiyatı']].rename(columns={'ticker': 'Hisse', 'signals': 'Onaylanan Sinyaller', 'score': 'Sinyal Gücü', 'current_price': 'Mevcut Fiyat', 'target_price': 'Hedef Fiyat', 'potential_profit_pct': 'Potansiyel Kâr (%)'}).set_index('Hisse')
                 st.dataframe(display_df, use_container_width=True)
 
-    # --- SEKME 2 (DÜZELTİLMİŞ) ---
+    # --- SEKME 2 (DÜZELTİLMİŞ VE TAM) ---
     with tab2:
         st.header("İstediğiniz Hisseyi Derinlemesine İnceleyin")
         selected_display_name = st.selectbox('Analiz edilecek hisseyi seçin veya yazarak arayın:', full_stock_list['display_name'], index=None, placeholder="Piyasadaki herhangi bir hisseyi arayın...", key="single_stock_selector")
